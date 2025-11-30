@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "utils.h"
 #include "config.h"
 #include <Shlwapi.h>
@@ -86,6 +86,7 @@ namespace Utils {
 
         int result = MessageBoxW(NULL, msg.c_str(), L"游玩通知", MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST);
         if (result == IDNO) {
+            CleanupLeFiles();
             ExitProcess(0);
         }
     }
