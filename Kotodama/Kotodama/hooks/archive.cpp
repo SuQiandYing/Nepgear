@@ -59,7 +59,7 @@ namespace Archive {
         Utils::Log("[Archive] Looking for dat at: %S", archivePath);
 
         if (!PathFileExistsW(archivePath)) {
-            Utils::Log("[Archive] ERROR: patch.dat NOT FOUND!");
+            Utils::Log("[Archive] ERROR: %S NOT FOUND!", archivePath);
             return false;
         }
 
@@ -80,7 +80,7 @@ namespace Archive {
 
         HANDLE hFile = CreateFileW(archivePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
-            Utils::Log("[Archive] ERROR: Cannot open patch.dat");
+            Utils::Log("[Archive] ERROR: Cannot open %S", Config::ArchiveFileName);
             return false;
         }
 
