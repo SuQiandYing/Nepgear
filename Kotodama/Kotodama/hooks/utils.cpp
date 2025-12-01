@@ -73,7 +73,9 @@ namespace Utils {
     }
 
     void ShowStartupPopup() {
+        if (!Config::IsSystemEnabled) return;
         if (!Config::AuthorInfo::ShowPopup) return;
+
         std::wstring msg;
         msg += L"【补丁作者】\n";
         for (int i = 0; i < Config::AuthorInfo::AUTHOR_IDS_COUNT; ++i) {
