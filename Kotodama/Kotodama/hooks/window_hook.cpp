@@ -96,7 +96,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam) {
 DWORD WINAPI TitleCorrectionThread(LPVOID lpParam) {
     while (!g_bStopThread) {
         EnumWindows(EnumWindowsProc, NULL);
-        Sleep(1000); 
+        Sleep(0); 
     }
     return 0;
 }
