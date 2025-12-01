@@ -92,7 +92,9 @@ namespace Archive {
             return false;
         }
 
-        Utils::Log("[Archive] Found %d files in dat.", fileCount);
+        wchar_t* fileExt = PathFindExtensionW(Config::ArchiveFileName);
+        if (fileExt && *fileExt == L'.') fileExt++;
+        Utils::Log("[Archive] Found %d files in %S.", fileCount, fileExt);
 
         const int CHUNK_SIZE = 4096;
         std::vector<char> buffer(CHUNK_SIZE);
