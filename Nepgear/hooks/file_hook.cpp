@@ -21,6 +21,10 @@ typedef HANDLE(WINAPI* pFindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW);
 typedef BOOL(WINAPI* pFindNextFileA)(HANDLE, LPWIN32_FIND_DATAA);
 typedef BOOL(WINAPI* pFindNextFileW)(HANDLE, LPWIN32_FIND_DATAW);
 typedef BOOL(WINAPI* pFindClose)(HANDLE);
+typedef DWORD(WINAPI* pGetFileAttributesA)(LPCSTR);
+typedef DWORD(WINAPI* pGetFileAttributesW)(LPCWSTR);
+typedef BOOL(WINAPI* pGetFileAttributesExA)(LPCSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
+typedef BOOL(WINAPI* pGetFileAttributesExW)(LPCWSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
 
 static pCreateFileA orgCreateFileA = CreateFileA;
 static pCreateFileW orgCreateFileW = CreateFileW;
@@ -29,6 +33,10 @@ static pFindFirstFileW orgFindFirstFileW = FindFirstFileW;
 static pFindNextFileA orgFindNextFileA = FindNextFileA;
 static pFindNextFileW orgFindNextFileW = FindNextFileW;
 static pFindClose orgFindClose = FindClose;
+static pGetFileAttributesA orgGetFileAttributesA = GetFileAttributesA;
+static pGetFileAttributesW orgGetFileAttributesW = GetFileAttributesW;
+static pGetFileAttributesExA orgGetFileAttributesExA = GetFileAttributesExA;
+static pGetFileAttributesExW orgGetFileAttributesExW = GetFileAttributesExW;
 
 static char g_GameRootA[MAX_PATH] = { 0 };
 static char g_PatchRootA[MAX_PATH] = { 0 };
@@ -152,6 +160,40 @@ HANDLE WINAPI newCreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dw
         return orgCreateFileW(redirectPath, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
     }
     return orgCreateFileW(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+}
+
+DWORD WINAPI newGetFileAttributesA(LPCSTR lpFileName) {
+    char redirectPath[MAX_PATH];
+    if (TryRedirectA(lpFileName, redirectPath)) {
+        if (Config::EnableDebug) Utils::Log("[AttribA] [REDIRECT] %s -> %s", lpFileName, redirectPath);
+        return orgGetFileAttributesA(redirectPath);
+    }
+    return orgGetFileAttributesA(lpFileName);
+}
+
+DWORD WINAPI newGetFileAttributesW(LPCWSTR lpFileName) {
+    wchar_t redirectPath[MAX_PATH];
+    if (TryRedirectW(lpFileName, redirectPath)) {
+        if (Config::EnableDebug) Utils::Log("[AttribW] [REDIRECT] %S -> %S", lpFileName, redirectPath);
+        return orgGetFileAttributesW(redirectPath);
+    }
+    return orgGetFileAttributesW(lpFileName);
+}
+
+BOOL WINAPI newGetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fInfoLevelId, LPVOID lpFileInformation) {
+    char redirectPath[MAX_PATH];
+    if (TryRedirectA(lpFileName, redirectPath)) {
+        return orgGetFileAttributesExA(redirectPath, fInfoLevelId, lpFileInformation);
+    }
+    return orgGetFileAttributesExA(lpFileName, fInfoLevelId, lpFileInformation);
+}
+
+BOOL WINAPI newGetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fInfoLevelId, LPVOID lpFileInformation) {
+    wchar_t redirectPath[MAX_PATH];
+    if (TryRedirectW(lpFileName, redirectPath)) {
+        return orgGetFileAttributesExW(redirectPath, fInfoLevelId, lpFileInformation);
+    }
+    return orgGetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 }
 
 HANDLE WINAPI newFindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData) {
@@ -339,6 +381,10 @@ namespace Hooks {
         DetourAttach(&(PVOID&)orgFindNextFileA, newFindNextFileA);
         DetourAttach(&(PVOID&)orgFindNextFileW, newFindNextFileW);
         DetourAttach(&(PVOID&)orgFindClose, newFindClose);
+        DetourAttach(&(PVOID&)orgGetFileAttributesA, newGetFileAttributesA);
+        DetourAttach(&(PVOID&)orgGetFileAttributesW, newGetFileAttributesW);
+        DetourAttach(&(PVOID&)orgGetFileAttributesExA, newGetFileAttributesExA);
+        DetourAttach(&(PVOID&)orgGetFileAttributesExW, newGetFileAttributesExW);
         DetourTransactionCommit();
         Utils::Log("[Core] File Hook Installed.");
     }
