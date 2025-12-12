@@ -106,4 +106,4 @@ Nepgear 配套了一个简单的打包工具 `Packer.exe`，用于将翻译资�
 欢迎提交 Issue 或 Pull Request 来改进本项目。
 
 ## 📄 许可证
-[MIT License](LICENSE) 
+[MIT License](LICENSE) (如有)
