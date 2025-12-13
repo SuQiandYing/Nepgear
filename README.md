@@ -96,14 +96,3 @@ Nepgear 配套了一个简单的打包工具 `Packer.exe`，用于将翻译资�
 2.  将该文件夹直接**拖拽**到 `Packer.exe` 图标上。
 3.  程序会自动在同级目录生成同名的 `.chs` 文件（例如拖拽 `Nepgear` 文件夹 -> 生成 `Nepgear.chs`）。
 4.  将生成的 `.chs` 文件放入游戏目录，并在 `Nepgear.ini` 中配置 `ArchiveFile=xxx.chs`。
-
-## ⚠️ 注意事项
-*   **编码问题**：`Nepgear.ini` 必须是 **UTF-16 LE** (带 BOM) 编码，否则可能无法读取。
-*   **32位/64位**：请根据游戏程序的架构编译对应的 DLL。绝大多数老游戏和 Galgame 都是 32 位 (x86)。
-*   **反作弊/保护**：部分带有强力 DRM 或反作弊系统的游戏可能会阻止 DLL 劫持。
-
-## 🤝 贡献
-欢迎提交 Issue 或 Pull Request 来改进本项目。
-
-## 📄 许可证
-[MIT License](LICENSE) (如有)
