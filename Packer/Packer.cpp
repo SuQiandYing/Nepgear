@@ -1,8 +1,44 @@
 #include <windows.h>
+#include <compressapi.h>
 #include <stdio.h>
 #include <vector>
 #include <string>
 #include <iostream>
+
+#pragma comment(lib, "cabinet.lib")
+
+bool CompressData(const std::vector<char>& input, std::vector<char>& output) {
+    COMPRESSOR_HANDLE compressor = NULL;
+    if (!CreateCompressor(COMPRESS_ALGORITHM_LZMS, NULL, &compressor)) {
+        printf("  [Debug] CreateCompressor failed: %d\n", GetLastError());
+        return false;
+    }
+
+    DWORD blockSize = 1024 * 1024; 
+    SetCompressorInformation(compressor, COMPRESS_INFORMATION_CLASS_BLOCK_SIZE, &blockSize, sizeof(blockSize));
+
+    SIZE_T compressedSize = 0;
+    if (!Compress(compressor, input.data(), input.size(), NULL, 0, &compressedSize)) {
+        DWORD error = GetLastError();
+        if (error != ERROR_INSUFFICIENT_BUFFER) {
+            printf("  [Debug] Compress (size query) failed: %d\n", error);
+            CloseCompressor(compressor);
+            return false;
+        }
+    }
+
+    output.resize(compressedSize);
+    if (!Compress(compressor, input.data(), input.size(), output.data(), compressedSize, &compressedSize)) {
+        printf("  [Debug] Compress (data) failed: %d\n", GetLastError());
+        CloseCompressor(compressor);
+        return false;
+    }
+
+    output.resize(compressedSize);
+
+    CloseCompressor(compressor);
+    return true;
+}
 
 void GetAllFiles(std::string root, std::string currentSub, std::vector<std::string>& fileList) {
     std::string searchPath = root + currentSub + "*.*";
@@ -54,11 +90,12 @@ bool PackDirectory(std::string inputFolder, std::string outputFile) {
     fwrite(&count, sizeof(int), 1, fpOut);
 
     int successCount = 0;
+    size_t totalOriginal = 0;
+    size_t totalCompressed = 0;
 
     for (const auto& relPath : files) {
         int pathLen = (int)relPath.length();
         fwrite(&pathLen, sizeof(int), 1, fpOut);
-
         fwrite(relPath.c_str(), 1, pathLen, fpOut);
 
         std::string fullPath = rootPath + relPath;
@@ -66,27 +103,57 @@ bool PackDirectory(std::string inputFolder, std::string outputFile) {
         fopen_s(&fpIn, fullPath.c_str(), "rb");
         if (fpIn) {
             fseek(fpIn, 0, SEEK_END);
-            int size = ftell(fpIn);
+            int originalSize = ftell(fpIn);
             fseek(fpIn, 0, SEEK_SET);
 
-            std::vector<char> buffer(size);
-            if (size > 0) fread(buffer.data(), 1, size, fpIn);
+            std::vector<char> inputBuffer(originalSize);
+            if (originalSize > 0) fread(inputBuffer.data(), 1, originalSize, fpIn);
             fclose(fpIn);
 
-            fwrite(&size, sizeof(int), 1, fpOut);
-            if (size > 0) fwrite(buffer.data(), 1, size, fpOut);
+            std::vector<char> compressedBuffer;
+            bool compressed = false;
+            
+            if (originalSize > 64) {
+                if (CompressData(inputBuffer, compressedBuffer)) {
+                    if (compressedBuffer.size() < (size_t)originalSize) {
+                        compressed = true;
+                    }
+                }
+            }
 
+            int finalToWriteSize = compressed ? (int)compressedBuffer.size() : originalSize;
+            
+            printf("  [%s] %s: %d -> %d bytes\n", 
+                compressed ? "COMPRESSED" : "RAW", 
+                relPath.c_str(), 
+                originalSize, 
+                finalToWriteSize);
+
+            fwrite(&originalSize, sizeof(int), 1, fpOut);
+            fwrite(&finalToWriteSize, sizeof(int), 1, fpOut);
+
+            if (compressed) {
+                fwrite(compressedBuffer.data(), 1, finalToWriteSize, fpOut);
+            } else {
+                if (originalSize > 0) fwrite(inputBuffer.data(), 1, originalSize, fpOut);
+            }
+
+            totalOriginal += originalSize;
+            totalCompressed += finalToWriteSize;
             successCount++;
         }
         else {
             int zero = 0;
+            fwrite(&zero, sizeof(int), 1, fpOut);
             fwrite(&zero, sizeof(int), 1, fpOut);
             printf("  [Error] Failed to read: %s\n", fullPath.c_str());
         }
     }
 
     fclose(fpOut);
+    double ratio = totalOriginal > 0 ? (double)totalCompressed / totalOriginal * 100.0 : 100.0;
     printf("Successfully packed %d/%d files.\n", successCount, count);
+    printf("Compression Summary: %I64u -> %I64u bytes (%.2f%%)\n", (unsigned __int64)totalOriginal, (unsigned __int64)totalCompressed, ratio);
     return true;
 }
 

@@ -7,7 +7,8 @@ namespace VFS {
     struct VirtualFileEntry {
         std::wstring relativePath;
         LONGLONG offset;
-        DWORD size;
+        DWORD size;             // Stored size (compressed or raw)
+        DWORD decompressedSize; // Original size
         bool isLooseFile;
         std::wstring looseFilePath;
     };
@@ -17,6 +18,7 @@ namespace VFS {
         LONGLONG position;
         HANDLE archiveHandle;
         HANDLE looseFileHandle;
+        PBYTE decompressedBuffer; // Memory for decompressed data
         bool isLooseFile;
     };
 
@@ -24,6 +26,7 @@ namespace VFS {
     void Shutdown();
     bool IsActive();
     void SetOriginalFunctions(void* readFile, void* setFilePointerEx, void* closeHandle);
+    void SetFindFunctions(void* findFirstW, void* findNextW, void* findClose, void* findFirstA, void* findNextA);
 
     bool HasVirtualFile(const wchar_t* relativePath);
     bool HasVirtualFileA(const char* relativePath);
@@ -40,6 +43,14 @@ namespace VFS {
     BOOL CloseVirtualHandle(HANDLE hFile);
     BOOL GetVirtualFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMATION lpFileInformation);
     DWORD GetVirtualFileType(HANDLE hFile);
+
+    HANDLE VirtualFindFirstFileW(LPCWSTR lpFileName, LPWIN32_FIND_DATAW lpFindFileData);
+    BOOL VirtualFindNextFileW(HANDLE hFindFile, LPWIN32_FIND_DATAW lpFindFileData);
+    
+    HANDLE VirtualFindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData);
+    BOOL VirtualFindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData);
+
+    BOOL VirtualFindClose(HANDLE hFindFile);
 
     bool ExtractFile(const wchar_t* relativePath, const wchar_t* destPath);
 }

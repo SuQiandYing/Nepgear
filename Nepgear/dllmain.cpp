@@ -7,6 +7,7 @@
 #include "hooks/file_hook.h"
 #include "hooks/locale_emulator.h"
 #include "hooks/vfs.h"
+#include "hooks/crash_handler.h"
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
@@ -18,6 +19,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         }
 
         Utils::InitConsole();
+        CrashHandler::Install();
         VFS::Initialize(hModule);
 
         if (Config::EnableLE) {

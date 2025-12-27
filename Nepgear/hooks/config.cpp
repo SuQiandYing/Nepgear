@@ -39,6 +39,7 @@ namespace Config {
     wchar_t LE_Timezone[128] = L"Tokyo Standard Time";
 
     bool    EnableDebug = false;
+    bool    EnableLogToFile = false;
 
     static void WCharToChar(const wchar_t* src, char* dest, int destSize) {
         WideCharToMultiByte(CP_ACP, 0, src, -1, dest, destSize, NULL, NULL);
@@ -104,5 +105,6 @@ namespace Config {
         GetPrivateProfileStringW(L"LocaleEmulator", L"Timezone", L"Tokyo Standard Time", LE_Timezone, 128, iniPath);
 
         EnableDebug = GetPrivateProfileIntW(L"Debug", L"Enable", 0, iniPath) != 0;
+        EnableLogToFile = GetPrivateProfileIntW(L"Debug", L"LogToFile", 0, iniPath) != 0;
     }
 }

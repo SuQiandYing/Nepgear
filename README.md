@@ -59,7 +59,7 @@ Enable=1
 
 ; 字体文件名（必须放在游戏根目录或重定向文件夹内）
 ; 若留空则使用系统默认字体
-FileName=galgame_cnjp.ttf
+FileName=galgame.ttf
 
 ; 字体名称（CreateFont 中的 FaceName）
 ; 建议与 FileName 中的字体内名称保持一致
@@ -75,7 +75,7 @@ EnableFaceNameReplace=1
 
 ; 是否启用字符集替换 (0 = 关闭, 1 = 开启)
 ; 设为0时不会修改原始字符集
-EnableCharsetReplace=1
+EnableCharsetReplace=0
 
 ; 是否启用字体高度缩放 (0 = 关闭, 1 = 开启)
 EnableHeightScale=1
@@ -100,7 +100,7 @@ Weight=0
 Enable=1
 
 ; 自定义窗口标题内容
-Title=托比之心灵归来。
+Title=我是一只大肥鸭
 
 [FileRedirect]
 ; 是否启用文件重定向 (0 = 关闭, 1 = 开启)
@@ -133,7 +133,9 @@ Timezone=Tokyo Standard Time
 [Debug]
 ; 是否开启调试控制台 (0 = 关闭, 1 = 开启)
 ; 开启后会弹出一个 CMD 窗口显示 Hook 时的日志（用于排查文件加载等）
-Enable=1
+Enable=0
+; 是否开启Nepgear.log日志 (0 = 关闭, 1 = 开启)
+LogToFile=0
 ```
 
 ### 3. 使用 Packer 打包资源

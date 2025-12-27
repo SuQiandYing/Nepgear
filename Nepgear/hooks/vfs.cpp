@@ -3,25 +3,67 @@
 #include "config.h"
 #include "utils.h"
 #include <shlwapi.h>
+#include <compressapi.h>
 #include <mutex>
 #include <vector>
 #include <algorithm>
 
 #pragma comment(lib, "Shlwapi.lib")
+#pragma comment(lib, "cabinet.lib")
 
 typedef BOOL(WINAPI* pReadFile)(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED);
 typedef BOOL(WINAPI* pSetFilePointerEx)(HANDLE, LARGE_INTEGER, PLARGE_INTEGER, DWORD);
 typedef BOOL(WINAPI* pCloseHandle)(HANDLE);
 typedef HANDLE(WINAPI* pCreateFileW)(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
 
+typedef HANDLE(WINAPI* pFindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW);
+typedef BOOL(WINAPI* pFindNextFileW)(HANDLE, LPWIN32_FIND_DATAW);
+typedef BOOL(WINAPI* pFindClose)(HANDLE);
+
+typedef HANDLE(WINAPI* pFindFirstFileA)(LPCSTR, LPWIN32_FIND_DATAA);
+typedef BOOL(WINAPI* pFindNextFileA)(HANDLE, LPWIN32_FIND_DATAA);
+
 static pReadFile g_OrigReadFile = nullptr;
 static pSetFilePointerEx g_OrigSetFilePointerEx = nullptr;
 static pCloseHandle g_OrigCloseHandle = nullptr;
 
+static pFindFirstFileW g_OrigFindFirstFileW = nullptr;
+static pFindNextFileW g_OrigFindNextFileW = nullptr;
+static pFindFirstFileA g_OrigFindFirstFileA = nullptr;
+static pFindNextFileA g_OrigFindNextFileA = nullptr;
+static pFindClose g_OrigFindClose = nullptr;
+
 namespace VFS {
+    struct VirtualFindState {
+        HANDLE realHandle;
+        bool usingRealHandle;
+        std::vector<std::wstring> seenFiles;
+        std::vector<VirtualFileEntry*> matches;
+        size_t matchIndex;
+    };
+
     static std::unordered_map<std::wstring, VirtualFileEntry> g_FileIndex;
     static std::unordered_map<HANDLE, VirtualFileHandle*> g_HandleMap;
+    static std::unordered_map<HANDLE, VirtualFindState*> g_FindMap;
     static std::recursive_mutex g_Mutex;
+
+    static bool DecompressData(const std::vector<BYTE>& input, DWORD decompressedSize, PBYTE output) {
+        DECOMPRESSOR_HANDLE decompressor = NULL;
+        if (!CreateDecompressor(COMPRESS_ALGORITHM_LZMS, NULL, &decompressor)) {
+            Utils::Log("[VFS] CreateDecompressor failed: %d", GetLastError());
+            return false;
+        }
+
+        SIZE_T actualDecompressedSize = 0;
+        if (!Decompress(decompressor, input.data(), input.size(), output, decompressedSize, &actualDecompressedSize)) {
+            Utils::Log("[VFS] Decompress failed: %d", GetLastError());
+            CloseDecompressor(decompressor);
+            return false;
+        }
+
+        CloseDecompressor(decompressor);
+        return actualDecompressedSize == decompressedSize;
+    }
     static HANDLE g_ArchiveHandle = INVALID_HANDLE_VALUE;
     static wchar_t g_ArchivePath[MAX_PATH] = { 0 };
     static wchar_t g_LooseFolderPath[MAX_PATH] = { 0 };
@@ -55,6 +97,14 @@ namespace VFS {
         g_OrigReadFile = (pReadFile)readFile;
         g_OrigSetFilePointerEx = (pSetFilePointerEx)setFilePointerEx;
         g_OrigCloseHandle = (pCloseHandle)closeHandle;
+    }
+
+    void SetFindFunctions(void* findFirstW, void* findNextW, void* findClose, void* findFirstA, void* findNextA) {
+        g_OrigFindFirstFileW = (pFindFirstFileW)findFirstW;
+        g_OrigFindNextFileW = (pFindNextFileW)findNextW;
+        g_OrigFindClose = (pFindClose)findClose;
+        g_OrigFindFirstFileA = (pFindFirstFileA)findFirstA;
+        g_OrigFindNextFileA = (pFindNextFileA)findNextA;
     }
 
     static void ScanLooseFiles(const wchar_t* basePath, const wchar_t* currentPath, const wchar_t* relativeBase) {
@@ -141,6 +191,17 @@ namespace VFS {
 
         Utils::Log("[VFS] Looking for archive at: %S", g_ArchivePath);
 
+        if (!PathFileExistsW(g_ArchivePath)) {
+             wchar_t fallbackPath[MAX_PATH];
+             wcscpy_s(fallbackPath, baseDir);
+             PathAppendW(fallbackPath, Config::RedirectFolderW);
+             PathAppendW(fallbackPath, Config::ArchiveFileName);
+             Utils::Log("[VFS] Archive not found in root, checking fallback: %S", fallbackPath);
+             if (PathFileExistsW(fallbackPath)) {
+                 wcscpy_s(g_ArchivePath, fallbackPath);
+             }
+        }
+
         if (PathFileExistsW(g_ArchivePath)) {
             Utils::Log("[VFS] Opening archive file...");
             g_ArchiveHandle = g_RawCreateFileW(g_ArchivePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -161,8 +222,11 @@ namespace VFS {
                         wchar_t relPathW[MAX_PATH];
                         MultiByteToWideChar(CP_ACP, 0, relPath.data(), -1, relPathW, MAX_PATH);
 
-                        int dataSize = 0;
-                        if (!g_RawReadFile(g_ArchiveHandle, &dataSize, sizeof(int), &bytesRead, NULL)) break;
+                        int decompressedSize = 0;
+                        if (!g_RawReadFile(g_ArchiveHandle, &decompressedSize, sizeof(int), &bytesRead, NULL)) break;
+
+                        int storedSize = 0;
+                        if (!g_RawReadFile(g_ArchiveHandle, &storedSize, sizeof(int), &bytesRead, NULL)) break;
 
                         LARGE_INTEGER currentPos;
                         LARGE_INTEGER zero = { 0 };
@@ -174,13 +238,14 @@ namespace VFS {
                             VirtualFileEntry entry;
                             entry.relativePath = relPathW;
                             entry.offset = currentPos.QuadPart;
-                            entry.size = dataSize;
+                            entry.size = storedSize;
+                            entry.decompressedSize = decompressedSize;
                             entry.isLooseFile = false;
                             g_FileIndex[normalizedPath] = entry;
                         }
 
                         LARGE_INTEGER skipDist;
-                        skipDist.QuadPart = dataSize;
+                        skipDist.QuadPart = storedSize;
                         g_RawSetFilePointerEx(g_ArchiveHandle, skipDist, NULL, FILE_CURRENT);
                     }
                 } else {
@@ -253,6 +318,7 @@ namespace VFS {
         vfh->entry = &it->second;
         vfh->position = 0;
         vfh->isLooseFile = it->second.isLooseFile;
+        vfh->decompressedBuffer = NULL;
 
         if (it->second.isLooseFile) {
             auto createFileFn = g_RawCreateFileW ? g_RawCreateFileW : CreateFileW;
@@ -265,13 +331,37 @@ namespace VFS {
         } else {
             vfh->archiveHandle = g_ArchiveHandle;
             vfh->looseFileHandle = INVALID_HANDLE_VALUE;
+
+            if (vfh->entry->size < vfh->entry->decompressedSize) {
+                std::vector<BYTE> compressedData(vfh->entry->size);
+                LARGE_INTEGER seekPos;
+                seekPos.QuadPart = vfh->entry->offset;
+                
+                auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : SetFilePointerEx;
+                auto readFileFn = g_RawReadFile ? g_RawReadFile : ReadFile;
+
+                if (setFilePointerExFn(g_ArchiveHandle, seekPos, NULL, FILE_BEGIN)) {
+                    DWORD bytesRead = 0;
+                    if (readFileFn(g_ArchiveHandle, compressedData.data(), vfh->entry->size, &bytesRead, NULL) && bytesRead == vfh->entry->size) {
+                        vfh->decompressedBuffer = (PBYTE)HeapAlloc(GetProcessHeap(), 0, vfh->entry->decompressedSize);
+                        if (vfh->decompressedBuffer) {
+                            if (!DecompressData(compressedData, vfh->entry->decompressedSize, vfh->decompressedBuffer)) {
+                                Utils::Log("[VFS] Failed to decompress: %S", relativePath);
+                                HeapFree(GetProcessHeap(), 0, vfh->decompressedBuffer);
+                                vfh->decompressedBuffer = NULL;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         HANDLE fakeHandle = (HANDLE)(++g_VirtualHandleCounter);
         g_HandleMap[fakeHandle] = vfh;
 
         if (Config::EnableDebug) {
-            Utils::Log("[VFS] Opened virtual file: %S (handle: %p, size: %d, loose: %d)", relativePath, fakeHandle, it->second.size, it->second.isLooseFile ? 1 : 0);
+            Utils::Log("[VFS] Opened virtual file: %S (handle: %p, original: %d, stored: %d, compressed: %d)", 
+                relativePath, fakeHandle, it->second.decompressedSize, it->second.size, (it->second.size < it->second.decompressedSize));
         }
 
         return fakeHandle;
@@ -304,7 +394,7 @@ namespace VFS {
             return FALSE;
         }
 
-        LONGLONG remaining = vfh->entry->size - vfh->position;
+        LONGLONG remaining = vfh->entry->decompressedSize - vfh->position;
         if (remaining <= 0) {
             if (lpNumberOfBytesRead) *lpNumberOfBytesRead = 0;
             return TRUE;
@@ -313,29 +403,18 @@ namespace VFS {
         DWORD toRead = (DWORD)min((LONGLONG)nNumberOfBytesToRead, remaining);
         DWORD bytesRead = 0;
 
-        if (vfh->isLooseFile) {
-            LARGE_INTEGER seekPos;
-            seekPos.QuadPart = vfh->position;
-
-            auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : g_OrigSetFilePointerEx;
-            auto readFileFn = g_RawReadFile ? g_RawReadFile : g_OrigReadFile;
-
-            if (!setFilePointerExFn || !readFileFn) {
-                SetLastError(ERROR_NOT_READY);
-                return FALSE;
-            }
-
-            if (!setFilePointerExFn(vfh->looseFileHandle, seekPos, NULL, FILE_BEGIN)) {
-                SetLastError(ERROR_READ_FAULT);
-                return FALSE;
-            }
+        if (vfh->decompressedBuffer) {
+            memcpy(lpBuffer, vfh->decompressedBuffer + vfh->position, toRead);
+            bytesRead = toRead;
+        } else if (vfh->isLooseFile) {
+            auto readFileFn = g_RawReadFile ? g_RawReadFile : ReadFile;
             if (!readFileFn(vfh->looseFileHandle, lpBuffer, toRead, &bytesRead, NULL)) {
                 return FALSE;
             }
         } else {
             LARGE_INTEGER seekPos;
             seekPos.QuadPart = vfh->entry->offset + vfh->position;
-
+            
             auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : g_OrigSetFilePointerEx;
             auto readFileFn = g_RawReadFile ? g_RawReadFile : g_OrigReadFile;
 
@@ -383,7 +462,7 @@ namespace VFS {
             newPos = vfh->position + distance;
             break;
         case FILE_END:
-            newPos = vfh->entry->size + distance;
+            newPos = vfh->entry->decompressedSize + distance;
             break;
         default:
             SetLastError(ERROR_INVALID_PARAMETER);
@@ -391,7 +470,7 @@ namespace VFS {
         }
 
         if (newPos < 0) newPos = 0;
-        if (newPos > (LONGLONG)vfh->entry->size) newPos = vfh->entry->size;
+        if (newPos > (LONGLONG)vfh->entry->decompressedSize) newPos = vfh->entry->decompressedSize;
 
         vfh->position = newPos;
 
@@ -420,7 +499,7 @@ namespace VFS {
             newPos = vfh->position + liDistanceToMove.QuadPart;
             break;
         case FILE_END:
-            newPos = vfh->entry->size + liDistanceToMove.QuadPart;
+            newPos = vfh->entry->decompressedSize + liDistanceToMove.QuadPart;
             break;
         default:
             SetLastError(ERROR_INVALID_PARAMETER);
@@ -428,7 +507,7 @@ namespace VFS {
         }
 
         if (newPos < 0) newPos = 0;
-        if (newPos > (LONGLONG)vfh->entry->size) newPos = vfh->entry->size;
+        if (newPos > (LONGLONG)vfh->entry->decompressedSize) newPos = vfh->entry->decompressedSize;
 
         vfh->position = newPos;
 
@@ -449,9 +528,9 @@ namespace VFS {
 
         VirtualFileHandle* vfh = it->second;
         if (lpFileSizeHigh) {
-            *lpFileSizeHigh = 0;
+            *lpFileSizeHigh = (DWORD)(vfh->entry->decompressedSize >> 32);
         }
-        return vfh->entry->size;
+        return (DWORD)(vfh->entry->decompressedSize & 0xFFFFFFFF);
     }
 
     BOOL GetVirtualFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize) {
@@ -464,7 +543,7 @@ namespace VFS {
 
         VirtualFileHandle* vfh = it->second;
         if (lpFileSize) {
-            lpFileSize->QuadPart = vfh->entry->size;
+            lpFileSize->QuadPart = vfh->entry->decompressedSize;
         }
         return TRUE;
     }
@@ -485,6 +564,11 @@ namespace VFS {
             }
         }
 
+        if (vfh->decompressedBuffer) {
+            HeapFree(GetProcessHeap(), 0, vfh->decompressedBuffer);
+            vfh->decompressedBuffer = NULL;
+        }
+
         delete vfh;
         g_HandleMap.erase(it);
         return TRUE;
@@ -501,8 +585,8 @@ namespace VFS {
         VirtualFileHandle* vfh = it->second;
         ZeroMemory(lpFileInformation, sizeof(BY_HANDLE_FILE_INFORMATION));
         lpFileInformation->dwFileAttributes = FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
-        lpFileInformation->nFileSizeLow = vfh->entry->size;
-        lpFileInformation->nFileSizeHigh = 0;
+        lpFileInformation->nFileSizeLow = (DWORD)(vfh->entry->decompressedSize & 0xFFFFFFFF);
+        lpFileInformation->nFileSizeHigh = (DWORD)(vfh->entry->decompressedSize >> 32);
         lpFileInformation->nNumberOfLinks = 1;
 
         return TRUE;
@@ -518,12 +602,249 @@ namespace VFS {
         return FILE_TYPE_DISK;
     }
 
+    static HANDLE VirtualFindFirstFileW_Internal(LPCWSTR lpFileName, LPWIN32_FIND_DATAW lpFindFileData) {
+        wchar_t fullPath[MAX_PATH];
+        if (!GetFullPathNameW(lpFileName, MAX_PATH, fullPath, NULL)) {
+             return g_OrigFindFirstFileW(lpFileName, lpFindFileData);
+        }
+        
+        std::wstring searchDir;
+        std::wstring pattern;
+        
+        std::wstring fullPathStr = fullPath;
+        size_t lastSlash = fullPathStr.find_last_of(L"\\/");
+        if (lastSlash != std::wstring::npos) {
+            searchDir = fullPathStr.substr(0, lastSlash);
+             pattern = fullPathStr.substr(lastSlash + 1);
+        } else {
+             return g_OrigFindFirstFileW(lpFileName, lpFindFileData);
+        }
+
+
+        VirtualFindState* state = new VirtualFindState();
+        state->realHandle = g_OrigFindFirstFileW(lpFileName, lpFindFileData);
+        state->usingRealHandle = (state->realHandle != INVALID_HANDLE_VALUE);
+        state->matchIndex = 0;
+
+        if (state->usingRealHandle) {
+             state->seenFiles.push_back(lpFindFileData->cFileName);
+        }
+
+        wchar_t gameRoot[MAX_PATH];
+        if (wcslen(g_ArchivePath) > 0) {
+             wcscpy_s(gameRoot, g_ArchivePath);
+             PathRemoveFileSpecW(gameRoot);
+        } else {
+             wcscpy_s(gameRoot, g_LooseFolderPath);
+             PathRemoveFileSpecW(gameRoot); 
+             PathRemoveFileSpecW(gameRoot); 
+        }
+
+        if (wcslen(gameRoot) < 3) {
+             GetModuleFileNameW(NULL, gameRoot, MAX_PATH);
+             PathRemoveFileSpecW(gameRoot);
+        }
+
+        std::wstring searchDirNorm = NormalizePath(searchDir.c_str());
+        
+        std::lock_guard<std::recursive_mutex> lock(g_Mutex);
+        
+        for (const auto& kv : g_FileIndex) {
+            const VirtualFileEntry& entry = kv.second;
+            
+            wchar_t vFullPath[MAX_PATH];
+            wcscpy_s(vFullPath, gameRoot);
+            PathAppendW(vFullPath, entry.relativePath.c_str());
+            
+            wchar_t vDir[MAX_PATH];
+            wcscpy_s(vDir, vFullPath);
+            PathRemoveFileSpecW(vDir);
+            
+            if (_wcsicmp(vDir, searchDir.c_str()) == 0) {
+                const wchar_t* fileName = PathFindFileNameW(vFullPath);
+                if (PathMatchSpecW(fileName, pattern.c_str())) {
+                    state->matches.push_back(const_cast<VirtualFileEntry*>(&entry));
+                }
+            }
+        }
+        
+        if (!state->usingRealHandle && state->matches.empty()) {
+            delete state;
+            return INVALID_HANDLE_VALUE;
+        }
+        
+        if (!state->usingRealHandle && !state->matches.empty()) {
+             VirtualFileEntry* match = state->matches[0];
+             wcscpy_s(lpFindFileData->cFileName, PathFindFileNameW(match->relativePath.c_str()));
+             lpFindFileData->nFileSizeLow = (DWORD)(match->decompressedSize & 0xFFFFFFFF);
+             lpFindFileData->nFileSizeHigh = (DWORD)(match->decompressedSize >> 32);
+             lpFindFileData->dwFileAttributes = FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
+             state->matchIndex++;
+        }
+        
+        HANDLE hFake = (HANDLE)(++g_VirtualHandleCounter);
+        g_FindMap[hFake] = state;
+        return hFake;
+    }
+
+    HANDLE VirtualFindFirstFileW(LPCWSTR lpFileName, LPWIN32_FIND_DATAW lpFindFileData) {
+        if (!g_IsActive || !g_OrigFindFirstFileW) {
+             if (g_OrigFindFirstFileW) return g_OrigFindFirstFileW(lpFileName, lpFindFileData);
+             return FindFirstFileW(lpFileName, lpFindFileData);
+        }
+
+        Utils::Log("[VFS-Find] Start: %S", lpFileName);
+
+        __try {
+            return VirtualFindFirstFileW_Internal(lpFileName, lpFindFileData);
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER) {
+            Utils::Log("[VFS-Find] Crash in FindFirstFileW");
+            return INVALID_HANDLE_VALUE;
+        }
+    }
+
+    static BOOL VirtualFindNextFileW_Internal(HANDLE hFindFile, LPWIN32_FIND_DATAW lpFindFileData) {
+        std::lock_guard<std::recursive_mutex> lock(g_Mutex);
+        auto it = g_FindMap.find(hFindFile);
+        if (it == g_FindMap.end()) {
+             return FALSE; 
+        }
+        
+        VirtualFindState* state = it->second;
+        if (!state) return FALSE;
+
+        if (state->usingRealHandle) {
+            if (g_OrigFindNextFileW(state->realHandle, lpFindFileData)) {
+                state->seenFiles.push_back(lpFindFileData->cFileName);
+                return TRUE;
+            } else {
+                state->usingRealHandle = false;
+            }
+        }
+        
+        while (state->matchIndex < state->matches.size()) {
+            VirtualFileEntry* match = state->matches[state->matchIndex++];
+            const wchar_t* name = PathFindFileNameW(match->relativePath.c_str());
+            
+            bool seen = false;
+            for (const auto& s : state->seenFiles) {
+                if (_wcsicmp(s.c_str(), name) == 0) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (seen) continue;
+            
+            wcscpy_s(lpFindFileData->cFileName, name);
+            lpFindFileData->nFileSizeLow = (DWORD)(match->decompressedSize & 0xFFFFFFFF);
+            lpFindFileData->nFileSizeHigh = (DWORD)(match->decompressedSize >> 32);
+            lpFindFileData->dwFileAttributes = FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
+            return TRUE;
+        }
+        
+        SetLastError(ERROR_NO_MORE_FILES);
+        return FALSE;
+    }
+
+    BOOL VirtualFindNextFileW(HANDLE hFindFile, LPWIN32_FIND_DATAW lpFindFileData) {
+        __try {
+            return VirtualFindNextFileW_Internal(hFindFile, lpFindFileData);
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER) {
+             Utils::Log("[VFS-Find] Crash in FindNextFileW");
+             return FALSE;
+        }
+    }
+
+    static HANDLE VirtualFindFirstFileA_Internal(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData) {
+        wchar_t fileNameW[MAX_PATH];
+        MultiByteToWideChar(CP_ACP, 0, lpFileName, -1, fileNameW, MAX_PATH);
+
+        WIN32_FIND_DATAW findDataW;
+        HANDLE hFind = VirtualFindFirstFileW_Internal(fileNameW, &findDataW);
+
+        if (hFind != INVALID_HANDLE_VALUE) {
+            WideCharToMultiByte(CP_ACP, 0, findDataW.cFileName, -1, lpFindFileData->cFileName, MAX_PATH, NULL, NULL);
+            lpFindFileData->dwFileAttributes = findDataW.dwFileAttributes;
+            lpFindFileData->ftCreationTime = findDataW.ftCreationTime;
+            lpFindFileData->ftLastAccessTime = findDataW.ftLastAccessTime;
+            lpFindFileData->ftLastWriteTime = findDataW.ftLastWriteTime;
+            lpFindFileData->nFileSizeHigh = findDataW.nFileSizeHigh;
+            lpFindFileData->nFileSizeLow = findDataW.nFileSizeLow;
+            lpFindFileData->dwReserved0 = findDataW.dwReserved0;
+            lpFindFileData->dwReserved1 = findDataW.dwReserved1;
+            strcpy_s(lpFindFileData->cAlternateFileName, "");
+        }
+        return hFind;
+    }
+
+    HANDLE VirtualFindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData) {
+        if (!g_IsActive || !g_OrigFindFirstFileA) {
+             if (g_OrigFindFirstFileA) return g_OrigFindFirstFileA(lpFileName, lpFindFileData);
+             return FindFirstFileA(lpFileName, lpFindFileData);
+        }
+
+        Utils::Log("[VFS-FindA] Start: %s", lpFileName);
+        
+        __try {
+            return VirtualFindFirstFileA_Internal(lpFileName, lpFindFileData);
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER) {
+             Utils::Log("[VFS-FindA] Crash");
+             return INVALID_HANDLE_VALUE;
+        }
+    }
+
+    static BOOL VirtualFindNextFileA_Internal(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData) {
+        WIN32_FIND_DATAW findDataW;
+        if (VirtualFindNextFileW_Internal(hFindFile, &findDataW)) {
+            WideCharToMultiByte(CP_ACP, 0, findDataW.cFileName, -1, lpFindFileData->cFileName, MAX_PATH, NULL, NULL);
+            lpFindFileData->dwFileAttributes = findDataW.dwFileAttributes;
+            lpFindFileData->ftCreationTime = findDataW.ftCreationTime;
+            lpFindFileData->ftLastAccessTime = findDataW.ftLastAccessTime;
+            lpFindFileData->ftLastWriteTime = findDataW.ftLastWriteTime;
+            lpFindFileData->nFileSizeHigh = findDataW.nFileSizeHigh;
+            lpFindFileData->nFileSizeLow = findDataW.nFileSizeLow;
+            lpFindFileData->dwReserved0 = findDataW.dwReserved0;
+            lpFindFileData->dwReserved1 = findDataW.dwReserved1;
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+    BOOL VirtualFindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData) {
+        __try {
+            return VirtualFindNextFileA_Internal(hFindFile, lpFindFileData);
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER) {
+             Utils::Log("[VFS-FindA] Crash in Next");
+             return FALSE;
+        }
+    }
+
+    BOOL VirtualFindClose(HANDLE hFindFile) {
+        std::lock_guard<std::recursive_mutex> lock(g_Mutex);
+        auto it = g_FindMap.find(hFindFile);
+        if (it == g_FindMap.end()) {
+             return g_OrigFindClose(hFindFile);
+        }
+        
+        VirtualFindState* state = it->second;
+        if (state->realHandle != INVALID_HANDLE_VALUE) {
+            g_OrigFindClose(state->realHandle);
+        }
+        delete state;
+        g_FindMap.erase(it);
+        return TRUE;
+    }
+
     bool ExtractFile(const wchar_t* relativePath, const wchar_t* destPath) {
         if (!g_IsActive || !relativePath || !destPath) return false;
 
         std::wstring normalized = NormalizePath(relativePath);
 
-        std::lock_guard<std::recursive_mutex> lock(g_Mutex);
+        std::unique_lock<std::recursive_mutex> lock(g_Mutex);
         auto it = g_FileIndex.find(normalized);
         if (it == g_FileIndex.end()) {
             Utils::Log("[VFS] ExtractFile: File not found: %S", relativePath);
@@ -531,12 +852,30 @@ namespace VFS {
         }
 
         VirtualFileEntry& entry = it->second;
+        lock.unlock();
+
+        if (entry.isLooseFile) {
+            if (CopyFileW(entry.looseFilePath.c_str(), destPath, FALSE)) {
+                 Utils::Log("[VFS] ExtractFile: Copied loose file %S to %S", relativePath, destPath);
+                 return true;
+            } else {
+                 Utils::Log("[VFS] ExtractFile: Failed to copy loose file: %S (error: %d)", relativePath, GetLastError());
+                 return false;
+            }
+        }
+
+        if (g_ArchiveHandle == INVALID_HANDLE_VALUE) {
+             Utils::Log("[VFS] ExtractFile: Archive handle invalid for %S", relativePath);
+             return false;
+        }
 
         LARGE_INTEGER seekPos;
         seekPos.QuadPart = entry.offset;
 
         auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : SetFilePointerEx;
         auto readFileFn = g_RawReadFile ? g_RawReadFile : ReadFile;
+
+        std::lock_guard<std::recursive_mutex> reLock(g_Mutex);
 
         if (!setFilePointerExFn(g_ArchiveHandle, seekPos, NULL, FILE_BEGIN)) {
             Utils::Log("[VFS] ExtractFile: Failed to seek");
@@ -557,16 +896,33 @@ namespace VFS {
         }
 
         DWORD bytesWritten = 0;
-        BOOL writeOk = WriteFile(hDestFile, buffer.data(), entry.size, &bytesWritten, NULL);
+        PBYTE dataToWrite = buffer.data();
+        DWORD sizeToWrite = entry.size;
+        std::vector<BYTE> decompressedData;
+
+        if (entry.size < entry.decompressedSize) {
+            decompressedData.resize(entry.decompressedSize);
+            if (DecompressData(buffer, entry.decompressedSize, decompressedData.data())) {
+                dataToWrite = decompressedData.data();
+                sizeToWrite = entry.decompressedSize;
+            } else {
+                Utils::Log("[VFS] ExtractFile: Decompression failed for %S", relativePath);
+                CloseHandle(hDestFile);
+                DeleteFileW(destPath);
+                return false;
+            }
+        }
+
+        BOOL writeOk = WriteFile(hDestFile, dataToWrite, sizeToWrite, &bytesWritten, NULL);
         CloseHandle(hDestFile);
 
-        if (!writeOk || bytesWritten != entry.size) {
+        if (!writeOk || bytesWritten != sizeToWrite) {
             Utils::Log("[VFS] ExtractFile: Failed to write");
             DeleteFileW(destPath);
             return false;
         }
 
-        Utils::Log("[VFS] ExtractFile: Extracted %S to %S (%d bytes)", relativePath, destPath, entry.size);
+        Utils::Log("[VFS] ExtractFile: Extracted %S to %S (%d -> %d bytes)", relativePath, destPath, entry.size, sizeToWrite);
         return true;
     }
 }

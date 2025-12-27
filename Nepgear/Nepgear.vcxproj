@@ -164,6 +164,7 @@
     <ClInclude Include="hooks\utils.h" />
     <ClInclude Include="hooks\vfs.h" />
     <ClInclude Include="hooks\window_hook.h" />
+    <ClInclude Include="hooks\crash_handler.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -176,6 +177,7 @@
     <ClCompile Include="hooks\utils.cpp" />
     <ClCompile Include="hooks\vfs.cpp" />
     <ClCompile Include="hooks\window_hook.cpp" />
+    <ClCompile Include="hooks\crash_handler.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

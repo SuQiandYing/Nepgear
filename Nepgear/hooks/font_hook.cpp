@@ -19,6 +19,27 @@ static pCreateFontIndirectW orgCreateFontIndirectW = CreateFontIndirectW;
 static HMODULE g_hModule = NULL;
 static bool g_FontInitialized = false;
 static bool g_CustomFontLoaded = false;
+#include <set>
+#include <string>
+#include <mutex>
+
+static std::set<std::string> g_LoggedFontsA;
+static std::set<std::wstring> g_LoggedFontsW;
+static std::mutex g_LogMutex;
+
+static std::string AnsiToUtf8(const char* ansiStr) {
+    if (!ansiStr || !ansiStr[0]) return "";
+    int wideLen = MultiByteToWideChar(CP_ACP, 0, ansiStr, -1, NULL, 0);
+    if (wideLen <= 0) return ansiStr;
+    std::wstring wideStr(wideLen, 0);
+    MultiByteToWideChar(CP_ACP, 0, ansiStr, -1, &wideStr[0], wideLen);
+    int utf8Len = WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, NULL, 0, NULL, NULL);
+    if (utf8Len <= 0) return ansiStr;
+    std::string utf8Str(utf8Len, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, &utf8Str[0], utf8Len, NULL, NULL);
+    if (!utf8Str.empty() && utf8Str.back() == '\0') utf8Str.pop_back();
+    return utf8Str;
+}
 
 static void EnsureFontLoaded() {
     if (g_FontInitialized) return;
@@ -45,7 +66,14 @@ HFONT WINAPI newCreateFontA(int nHeight, int nWidth, int nEscapement, int nOrien
         return orgCreateFontA(nHeight, nWidth, nEscapement, nOrientation, fnWeight, fdwItalic, fdwUnderline, fdwStrikeOut, fdwCharSet, fdwOutputPrecision, fdwClipPrecision, fdwQuality, fdwPitchAndFamily, lpszFace);
     }
     if (Config::EnableDebug) {
-        Utils::Log("[FontA] '%s' -> '%s'", lpszFace ? lpszFace : "NULL", Config::EnableFaceNameReplace ? Config::ForcedFontNameA : (lpszFace ? lpszFace : "NULL"));
+        LPCSTR faceName = lpszFace ? lpszFace : "NULL";
+        std::lock_guard<std::mutex> lock(g_LogMutex);
+        if (g_LoggedFontsA.find(faceName) == g_LoggedFontsA.end()) {
+            std::string utf8Face = AnsiToUtf8(faceName);
+            std::string utf8Target = Config::EnableFaceNameReplace ? AnsiToUtf8(Config::ForcedFontNameA) : utf8Face;
+            Utils::Log("[FontA] '%s' -> '%s'", utf8Face.c_str(), utf8Target.c_str());
+            g_LoggedFontsA.insert(faceName);
+        }
     }
     int finalHeight = Config::EnableFontHeightScale ? (int)(nHeight * Config::FontHeightScale) : nHeight;
     int finalWidth = Config::EnableFontWidthScale ? (int)(nWidth * Config::FontWidthScale) : nWidth;
@@ -74,7 +102,13 @@ HFONT WINAPI newCreateFontIndirectA(const LOGFONTA* lplf) {
     }
 
     if (Config::EnableDebug) {
-        Utils::Log("[FontIndirectA] '%s' -> '%s'", lplf->lfFaceName, Config::EnableFaceNameReplace ? Config::ForcedFontNameA : lplf->lfFaceName);
+        std::lock_guard<std::mutex> lock(g_LogMutex);
+        if (g_LoggedFontsA.find(lplf->lfFaceName) == g_LoggedFontsA.end()) {
+            std::string utf8Face = AnsiToUtf8(lplf->lfFaceName);
+            std::string utf8Target = Config::EnableFaceNameReplace ? AnsiToUtf8(Config::ForcedFontNameA) : utf8Face;
+            Utils::Log("[FontIndirectA] '%s' -> '%s'", utf8Face.c_str(), utf8Target.c_str());
+            g_LoggedFontsA.insert(lplf->lfFaceName);
+        }
     }
 
     LOGFONTA modifiedLf = *lplf;
@@ -106,7 +140,12 @@ HFONT WINAPI newCreateFontW(int nHeight, int nWidth, int nEscapement, int nOrien
         return orgCreateFontW(nHeight, nWidth, nEscapement, nOrientation, fnWeight, fdwItalic, fdwUnderline, fdwStrikeOut, fdwCharSet, fdwOutputPrecision, fdwClipPrecision, fdwQuality, fdwPitchAndFamily, lpszFace);
     }
     if (Config::EnableDebug) {
-        Utils::Log("[FontW] '%S' -> '%S'", lpszFace ? lpszFace : L"NULL", Config::EnableFaceNameReplace ? Config::ForcedFontNameW : (lpszFace ? lpszFace : L"NULL"));
+        LPCWSTR faceName = lpszFace ? lpszFace : L"NULL";
+        std::lock_guard<std::mutex> lock(g_LogMutex);
+        if (g_LoggedFontsW.find(faceName) == g_LoggedFontsW.end()) {
+            Utils::Log("[FontW] '%S' -> '%S'", faceName, Config::EnableFaceNameReplace ? Config::ForcedFontNameW : faceName);
+            g_LoggedFontsW.insert(faceName);
+        }
     }
     int finalHeight = Config::EnableFontHeightScale ? (int)(nHeight * Config::FontHeightScale) : nHeight;
     int finalWidth = Config::EnableFontWidthScale ? (int)(nWidth * Config::FontWidthScale) : nWidth;
@@ -135,7 +174,11 @@ HFONT WINAPI newCreateFontIndirectW(const LOGFONTW* lplf) {
     }
 
     if (Config::EnableDebug) {
-        Utils::Log("[FontIndirectW] '%S' -> '%S'", lplf->lfFaceName, Config::EnableFaceNameReplace ? Config::ForcedFontNameW : lplf->lfFaceName);
+        std::lock_guard<std::mutex> lock(g_LogMutex);
+        if (g_LoggedFontsW.find(lplf->lfFaceName) == g_LoggedFontsW.end()) {
+            Utils::Log("[FontIndirectW] '%S' -> '%S'", lplf->lfFaceName, Config::EnableFaceNameReplace ? Config::ForcedFontNameW : lplf->lfFaceName);
+            g_LoggedFontsW.insert(lplf->lfFaceName);
+        }
     }
 
     LOGFONTW modifiedLf = *lplf;

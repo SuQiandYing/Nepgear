@@ -26,6 +26,11 @@ typedef DWORD(WINAPI* pGetFileAttributesA)(LPCSTR);
 typedef DWORD(WINAPI* pGetFileAttributesW)(LPCWSTR);
 typedef BOOL(WINAPI* pGetFileAttributesExA)(LPCSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
 typedef BOOL(WINAPI* pGetFileAttributesExW)(LPCWSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
+typedef HANDLE(WINAPI* pFindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW);
+typedef BOOL(WINAPI* pFindNextFileW)(HANDLE, LPWIN32_FIND_DATAW);
+typedef HANDLE(WINAPI* pFindFirstFileA)(LPCSTR, LPWIN32_FIND_DATAA);
+typedef BOOL(WINAPI* pFindNextFileA)(HANDLE, LPWIN32_FIND_DATAA);
+typedef BOOL(WINAPI* pFindClose)(HANDLE);
 
 static pCreateFileA orgCreateFileA = CreateFileA;
 static pCreateFileW orgCreateFileW = CreateFileW;
@@ -41,6 +46,11 @@ static pGetFileAttributesA orgGetFileAttributesA = GetFileAttributesA;
 static pGetFileAttributesW orgGetFileAttributesW = GetFileAttributesW;
 static pGetFileAttributesExA orgGetFileAttributesExA = GetFileAttributesExA;
 static pGetFileAttributesExW orgGetFileAttributesExW = GetFileAttributesExW;
+static pFindFirstFileW orgFindFirstFileW = FindFirstFileW;
+static pFindNextFileW orgFindNextFileW = FindNextFileW;
+static pFindFirstFileA orgFindFirstFileA = FindFirstFileA;
+static pFindNextFileA orgFindNextFileA = FindNextFileA;
+static pFindClose orgFindClose = FindClose;
 
 static char g_GameRootA[MAX_PATH] = { 0 };
 static wchar_t g_GameRootW[MAX_PATH] = { 0 };
@@ -327,6 +337,41 @@ BOOL WINAPI newGetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS f
     return orgGetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 }
 
+HANDLE WINAPI newFindFirstFileW(LPCWSTR lpFileName, LPWIN32_FIND_DATAW lpFindFileData) {
+    if (!Config::EnableFileHook || !VFS::IsActive()) {
+        return orgFindFirstFileW(lpFileName, lpFindFileData);
+    }
+    return VFS::VirtualFindFirstFileW(lpFileName, lpFindFileData);
+}
+
+BOOL WINAPI newFindNextFileW(HANDLE hFindFile, LPWIN32_FIND_DATAW lpFindFileData) {
+    if (IsVirtualHandleRange(hFindFile)) {
+        return VFS::VirtualFindNextFileW(hFindFile, lpFindFileData);
+    }
+    return orgFindNextFileW(hFindFile, lpFindFileData);
+}
+
+HANDLE WINAPI newFindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData) {
+    if (!Config::EnableFileHook || !VFS::IsActive()) {
+        return orgFindFirstFileA(lpFileName, lpFindFileData);
+    }
+    return VFS::VirtualFindFirstFileA(lpFileName, lpFindFileData);
+}
+
+BOOL WINAPI newFindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData) {
+    if (IsVirtualHandleRange(hFindFile)) {
+        return VFS::VirtualFindNextFileA(hFindFile, lpFindFileData);
+    }
+    return orgFindNextFileA(hFindFile, lpFindFileData);
+}
+
+BOOL WINAPI newFindClose(HANDLE hFindFile) {
+    if (IsVirtualHandleRange(hFindFile)) {
+        return VFS::VirtualFindClose(hFindFile);
+    }
+    return orgFindClose(hFindFile);
+}
+
 namespace Hooks {
     void InstallFileHook() {
         if (!Config::EnableFileHook) return;
@@ -347,10 +392,17 @@ namespace Hooks {
         DetourAttach(&(PVOID&)orgGetFileAttributesA, newGetFileAttributesA);
         DetourAttach(&(PVOID&)orgGetFileAttributesW, newGetFileAttributesW);
         DetourAttach(&(PVOID&)orgGetFileAttributesExA, newGetFileAttributesExA);
+
         DetourAttach(&(PVOID&)orgGetFileAttributesExW, newGetFileAttributesExW);
+        DetourAttach(&(PVOID&)orgFindFirstFileW, newFindFirstFileW);
+        DetourAttach(&(PVOID&)orgFindNextFileW, newFindNextFileW);
+        DetourAttach(&(PVOID&)orgFindFirstFileA, newFindFirstFileA);
+        DetourAttach(&(PVOID&)orgFindNextFileA, newFindNextFileA);
+        DetourAttach(&(PVOID&)orgFindClose, newFindClose);
         DetourTransactionCommit();
 
         VFS::SetOriginalFunctions((void*)orgReadFile, (void*)orgSetFilePointerEx, (void*)orgCloseHandle);
+        VFS::SetFindFunctions((void*)orgFindFirstFileW, (void*)orgFindNextFileW, (void*)orgFindClose, (void*)orgFindFirstFileA, (void*)orgFindNextFileA);
 
         Utils::Log("[Core] VFS File Hook Installed.");
     }

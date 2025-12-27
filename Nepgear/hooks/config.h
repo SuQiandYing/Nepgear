@@ -34,6 +34,7 @@ namespace Config {
     extern wchar_t LE_Timezone[128];
 
     extern bool    EnableDebug;
+    extern bool    EnableLogToFile;
 
     namespace AuthorInfo {
         const bool ShowPopup = true;

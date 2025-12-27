@@ -59,6 +59,18 @@ namespace Archive {
         Utils::Log("[Archive] Looking for dat at: %S", archivePath);
 
         if (!PathFileExistsW(archivePath)) {
+             wchar_t fallbackPath[MAX_PATH];
+             GetModuleFileNameW(hModule, fallbackPath, MAX_PATH);
+             PathRemoveFileSpecW(fallbackPath);
+             PathAppendW(fallbackPath, Config::RedirectFolderW);
+             PathAppendW(fallbackPath, Config::ArchiveFileName);
+             Utils::Log("[Archive] Archive not found in root, checking fallback: %S", fallbackPath);
+             if (PathFileExistsW(fallbackPath)) {
+                 wcscpy_s(archivePath, fallbackPath);
+             }
+        }
+
+        if (!PathFileExistsW(archivePath)) {
             Utils::Log("[Archive] ERROR: %S NOT FOUND!", archivePath);
             return false;
         }
