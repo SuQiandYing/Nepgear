@@ -1,4 +1,4 @@
-﻿#include "../pch.h"
+#include "../pch.h"
 #include "utils.h"
 #include "config.h"
 #include "vfs.h"
@@ -180,81 +180,127 @@ namespace Utils {
         }
     }
 
-    static void LogInternal(LogLevel level, const char* format, va_list args) {
-        char buffer[4096];
-        vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
-
+    static void LogInternal(LogLevel level, const wchar_t* message) {
         SYSTEMTIME st;
         GetLocalTime(&st);
-        char timeBuf[64];
-        sprintf_s(timeBuf, "[%02d:%02d:%02d.%03d]", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+        wchar_t timeBuf[64];
+        swprintf_s(timeBuf, L"[%02d:%02d:%02d.%03d]", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 
-        const char* levelPrefix = "[INFO ]";
+        const wchar_t* levelPrefix = L"[INFO ]";
         WORD consoleAttr = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
 
         if (level == LOG_WARN) {
-            levelPrefix = "[WARN ]";
+            levelPrefix = L"[WARN ]";
             consoleAttr = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
         }
         else if (level == LOG_ERROR) {
-            levelPrefix = "[ERROR]";
+            levelPrefix = L"[ERROR]";
             consoleAttr = FOREGROUND_RED | FOREGROUND_INTENSITY;
         }
 
-        std::string logLine;
+        std::wstring logLine;
         if (level == LOG_ERROR) {
-            logLine += "============================================================\n";
+            logLine += L"============================================================\n";
         }
         logLine += timeBuf;
-        logLine += " ";
+        logLine += L" ";
         logLine += levelPrefix;
-        logLine += " ";
-        logLine += buffer;
-        logLine += "\n";
+        logLine += L" ";
+        logLine += message;
+        logLine += L"\n";
         if (level == LOG_ERROR) {
-            logLine += "============================================================\n";
+            logLine += L"============================================================\n";
         }
 
-        OutputDebugStringA(logLine.c_str());
+        OutputDebugStringW(logLine.c_str());
 
-        if (Config::EnableLogToFile) {
-            static wchar_t logPath[MAX_PATH] = { 0 };
-            if (logPath[0] == 0) {
-                GetModuleFileNameW(NULL, logPath, MAX_PATH);
-                PathRemoveFileSpecW(logPath);
-                PathAppendW(logPath, L"Nepgear.log");
+        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, logLine.c_str(), -1, NULL, 0, NULL, NULL);
+        if (utf8Len > 0) {
+            std::vector<char> utf8Buf(utf8Len);
+            WideCharToMultiByte(CP_UTF8, 0, logLine.c_str(), -1, utf8Buf.data(), utf8Len, NULL, NULL);
+            std::string utf8Str(utf8Buf.data());
+
+            if (Config::EnableLogToFile) {
+                static wchar_t logPath[MAX_PATH] = { 0 };
+                static bool logRecreated = false;
+
+                if (logPath[0] == 0) {
+                    GetModuleFileNameW(NULL, logPath, MAX_PATH);
+                    PathRemoveFileSpecW(logPath);
+                    PathAppendW(logPath, L"Nepgear.log");
+                }
+
+                DWORD dwCreationDisposition = OPEN_ALWAYS;
+                if (!logRecreated) {
+                    dwCreationDisposition = CREATE_ALWAYS;
+                    logRecreated = true;
+                }
+
+                HANDLE hFile = CreateFileW(logPath, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, NULL);
+                if (hFile != INVALID_HANDLE_VALUE) {
+                    DWORD bytesWritten;
+                    WriteFile(hFile, utf8Str.c_str(), (DWORD)utf8Str.length(), &bytesWritten, NULL);
+                    CloseHandle(hFile);
+                }
             }
 
-            HANDLE hFile = CreateFileW(logPath, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-            if (hFile != INVALID_HANDLE_VALUE) {
-                DWORD bytesWritten;
-                WriteFile(hFile, logLine.c_str(), (DWORD)logLine.length(), &bytesWritten, NULL);
-                CloseHandle(hFile);
+            if (Config::EnableDebug) {
+                HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+                if (hConsole != INVALID_HANDLE_VALUE) {
+                    SetConsoleTextAttribute(hConsole, consoleAttr);
+                    printf("%s", utf8Str.c_str());
+                    SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+                }
             }
-        }
-
-        if (Config::EnableDebug) {
-             HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-             if (hConsole != INVALID_HANDLE_VALUE) {
-                 SetConsoleTextAttribute(hConsole, consoleAttr);
-                 printf("%s", logLine.c_str());
-                 SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
-             }
         }
     }
 
     void Log(const char* format, ...) {
+        char buffer[2048];
         va_list args;
         va_start(args, format);
-        LogInternal(LOG_INFO, format, args);
+        vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
         va_end(args);
+
+        int wLen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, NULL, 0);
+        if (wLen > 0) {
+            std::vector<wchar_t> wBuf(wLen);
+            MultiByteToWideChar(CP_ACP, 0, buffer, -1, wBuf.data(), wLen);
+            LogInternal(LOG_INFO, wBuf.data());
+        }
     }
 
     void Log(LogLevel level, const char* format, ...) {
+        char buffer[2048];
         va_list args;
         va_start(args, format);
-        LogInternal(level, format, args);
+        vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
         va_end(args);
+
+        int wLen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, NULL, 0);
+        if (wLen > 0) {
+            std::vector<wchar_t> wBuf(wLen);
+            MultiByteToWideChar(CP_ACP, 0, buffer, -1, wBuf.data(), wLen);
+            LogInternal(level, wBuf.data());
+        }
+    }
+
+    void LogW(const wchar_t* format, ...) {
+        wchar_t buffer[4096];
+        va_list args;
+        va_start(args, format);
+        _vsnwprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
+        va_end(args);
+        LogInternal(LOG_INFO, buffer);
+    }
+
+    void LogW(LogLevel level, const wchar_t* format, ...) {
+        wchar_t buffer[4096];
+        va_list args;
+        va_start(args, format);
+        _vsnwprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
+        va_end(args);
+        LogInternal(level, buffer);
     }
 
     void InitConsole() {

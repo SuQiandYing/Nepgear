@@ -1,4 +1,4 @@
-﻿#include "../pch.h"
+#include "../pch.h"
 #include "vfs.h"
 #include "config.h"
 #include "utils.h"
@@ -89,7 +89,7 @@ namespace VFS {
 
     static std::wstring NormalizePathA(const char* path) {
         wchar_t wpath[MAX_PATH];
-        MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAX_PATH);
+        MultiByteToWideChar(Config::LE_Codepage, 0, path, -1, wpath, MAX_PATH);
         return NormalizePath(wpath);
     }
 
@@ -138,6 +138,7 @@ namespace VFS {
                 entry.relativePath = relativePath;
                 entry.offset = 0;
                 entry.size = fd.nFileSizeLow;
+                entry.decompressedSize = fd.nFileSizeLow;
                 entry.isLooseFile = true;
                 entry.looseFilePath = fullPath;
 
@@ -145,7 +146,7 @@ namespace VFS {
                 g_FileIndex[normalizedPath] = entry;
 
                 if (Config::EnableDebug) {
-                    Utils::Log("[VFS] Loose file indexed: %S", relativePath);
+                    Utils::LogW(L"[VFS] Loose file indexed: %s", relativePath);
                 }
             }
         } while (FindNextFileW(hFind, &fd));
@@ -179,24 +180,24 @@ namespace VFS {
         PathAppendW(g_LooseFolderPath, Config::RedirectFolderW);
 
         if (PathFileExistsW(g_LooseFolderPath) && PathIsDirectoryW(g_LooseFolderPath)) {
-            Utils::Log("[VFS] Scanning loose files from: %S", g_LooseFolderPath);
+            Utils::LogW(L"[VFS] Scanning loose files from: %s", g_LooseFolderPath);
             ScanLooseFiles(g_LooseFolderPath, g_LooseFolderPath, L"");
             Utils::Log("[VFS] Loose files indexed: %zu files", g_FileIndex.size());
         } else {
-            Utils::Log("[VFS] Loose folder not found: %S", g_LooseFolderPath);
+            Utils::LogW(L"[VFS] Loose folder not found: %s", g_LooseFolderPath);
         }
 
         wcscpy_s(g_ArchivePath, baseDir);
         PathAppendW(g_ArchivePath, Config::ArchiveFileName);
 
-        Utils::Log("[VFS] Looking for archive at: %S", g_ArchivePath);
+        Utils::LogW(L"[VFS] Looking for archive at: %s", g_ArchivePath);
 
         if (!PathFileExistsW(g_ArchivePath)) {
              wchar_t fallbackPath[MAX_PATH];
              wcscpy_s(fallbackPath, baseDir);
              PathAppendW(fallbackPath, Config::RedirectFolderW);
              PathAppendW(fallbackPath, Config::ArchiveFileName);
-             Utils::Log("[VFS] Archive not found in root, checking fallback: %S", fallbackPath);
+             Utils::LogW(L"[VFS] Archive not found in root, checking fallback: %s", fallbackPath);
              if (PathFileExistsW(fallbackPath)) {
                  wcscpy_s(g_ArchivePath, fallbackPath);
              }
@@ -220,7 +221,7 @@ namespace VFS {
                         if (!g_RawReadFile(g_ArchiveHandle, relPath.data(), pathLen, &bytesRead, NULL)) break;
 
                         wchar_t relPathW[MAX_PATH];
-                        MultiByteToWideChar(CP_ACP, 0, relPath.data(), -1, relPathW, MAX_PATH);
+                        MultiByteToWideChar(Config::LE_Codepage, 0, relPath.data(), -1, relPathW, MAX_PATH);
 
                         int decompressedSize = 0;
                         if (!g_RawReadFile(g_ArchiveHandle, &decompressedSize, sizeof(int), &bytesRead, NULL)) break;
@@ -254,10 +255,10 @@ namespace VFS {
                     g_ArchiveHandle = INVALID_HANDLE_VALUE;
                 }
             } else {
-                Utils::Log("[VFS] Failed to open archive: %S (error: %d)", g_ArchivePath, GetLastError());
+                Utils::LogW(L"[VFS] Failed to open archive: %s (error: %d)", g_ArchivePath, GetLastError());
             }
         } else {
-            Utils::Log("[VFS] Archive not found: %S", g_ArchivePath);
+            Utils::LogW(L"[VFS] Archive not found: %s", g_ArchivePath);
         }
 
         if (g_FileIndex.size() > 0) {
@@ -322,7 +323,9 @@ namespace VFS {
 
         if (it->second.isLooseFile) {
             auto createFileFn = g_RawCreateFileW ? g_RawCreateFileW : CreateFileW;
-            vfh->looseFileHandle = createFileFn(it->second.looseFilePath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            vfh->looseFileHandle = createFileFn(it->second.looseFilePath.c_str(), GENERIC_READ, 
+                                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 
+                                                NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
             if (vfh->looseFileHandle == INVALID_HANDLE_VALUE) {
                 delete vfh;
                 return INVALID_HANDLE_VALUE;
@@ -346,7 +349,7 @@ namespace VFS {
                         vfh->decompressedBuffer = (PBYTE)HeapAlloc(GetProcessHeap(), 0, vfh->entry->decompressedSize);
                         if (vfh->decompressedBuffer) {
                             if (!DecompressData(compressedData, vfh->entry->decompressedSize, vfh->decompressedBuffer)) {
-                                Utils::Log("[VFS] Failed to decompress: %S", relativePath);
+                                Utils::LogW(L"[VFS] Failed to decompress: %s", relativePath);
                                 HeapFree(GetProcessHeap(), 0, vfh->decompressedBuffer);
                                 vfh->decompressedBuffer = NULL;
                             }
@@ -360,7 +363,7 @@ namespace VFS {
         g_HandleMap[fakeHandle] = vfh;
 
         if (Config::EnableDebug) {
-            Utils::Log("[VFS] Opened virtual file: %S (handle: %p, original: %d, stored: %d, compressed: %d)", 
+            Utils::LogW(L"[VFS] Opened virtual file: %s (handle: %p, original: %d, stored: %d, compressed: %d)", 
                 relativePath, fakeHandle, it->second.decompressedSize, it->second.size, (it->second.size < it->second.decompressedSize));
         }
 
@@ -369,7 +372,7 @@ namespace VFS {
 
     HANDLE OpenVirtualFileA(const char* relativePath) {
         wchar_t wpath[MAX_PATH];
-        MultiByteToWideChar(CP_ACP, 0, relativePath, -1, wpath, MAX_PATH);
+        MultiByteToWideChar(Config::LE_Codepage, 0, relativePath, -1, wpath, MAX_PATH);
         return OpenVirtualFile(wpath);
     }
 
@@ -408,6 +411,14 @@ namespace VFS {
             bytesRead = toRead;
         } else if (vfh->isLooseFile) {
             auto readFileFn = g_RawReadFile ? g_RawReadFile : ReadFile;
+            auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : SetFilePointerEx;
+
+            LARGE_INTEGER seekPos;
+            seekPos.QuadPart = vfh->position;
+            if (!setFilePointerExFn(vfh->looseFileHandle, seekPos, NULL, FILE_BEGIN)) {
+                return FALSE;
+            }
+
             if (!readFileFn(vfh->looseFileHandle, lpBuffer, toRead, &bytesRead, NULL)) {
                 return FALSE;
             }
@@ -474,6 +485,13 @@ namespace VFS {
 
         vfh->position = newPos;
 
+        if (vfh->isLooseFile) {
+            auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : SetFilePointerEx;
+            LARGE_INTEGER li;
+            li.QuadPart = newPos;
+            setFilePointerExFn(vfh->looseFileHandle, li, NULL, FILE_BEGIN);
+        }
+
         if (lpDistanceToMoveHigh) {
             *lpDistanceToMoveHigh = (LONG)(newPos >> 32);
         }
@@ -510,6 +528,14 @@ namespace VFS {
         if (newPos > (LONGLONG)vfh->entry->decompressedSize) newPos = vfh->entry->decompressedSize;
 
         vfh->position = newPos;
+
+        if (vfh->isLooseFile) {
+            auto setFilePointerExFn = g_RawSetFilePointerEx ? g_RawSetFilePointerEx : SetFilePointerEx;
+            LARGE_INTEGER li;
+            li.QuadPart = newPos;
+            setFilePointerExFn(vfh->looseFileHandle, li, lpNewFilePointer, FILE_BEGIN);
+            return TRUE;
+        }
 
         if (lpNewFilePointer) {
             lpNewFilePointer->QuadPart = newPos;
@@ -602,6 +628,35 @@ namespace VFS {
         return FILE_TYPE_DISK;
     }
 
+    static bool ShouldLogPath(LPCWSTR lpFileName) {
+        if (!lpFileName) return false;
+        if (wcsstr(lpFileName, L"C:\\WINDOWS") || wcsstr(lpFileName, L"C:\\Windows")) return false;
+        if (wcsstr(lpFileName, L"C:\\Program Files")) return false;
+        if (wcsstr(lpFileName, L"CryptnetUrlCache")) return false;
+        
+        size_t len = wcslen(lpFileName);
+        if (len >= 3 && wcscmp(lpFileName + len - 3, L"*.*") == 0) return false;
+        if (len >= 1 && lpFileName[len - 1] == L'*') return false;
+
+        return true;
+    }
+
+    static bool ShouldLogPathA(LPCSTR lpFileName) {
+        if (!lpFileName) return false;
+        if (strstr(lpFileName, "C:\\WINDOWS") || strstr(lpFileName, "C:\\Windows")) return false;
+        if (strstr(lpFileName, "C:\\Program Files")) return false;
+        if (strstr(lpFileName, "CryptnetUrlCache")) return false;
+
+        size_t len = strlen(lpFileName);
+        if (len >= 3 && strcmp(lpFileName + len - 3, "*.*") == 0) return false;
+        if (len >= 1 && lpFileName[len - 1] == '*') return false;
+
+        return true;
+    }
+
+    static wchar_t g_LastFindLog[MAX_PATH] = { 0 };
+    static char g_LastFindLogA[MAX_PATH] = { 0 };
+
     static HANDLE VirtualFindFirstFileW_Internal(LPCWSTR lpFileName, LPWIN32_FIND_DATAW lpFindFileData) {
         wchar_t fullPath[MAX_PATH];
         if (!GetFullPathNameW(lpFileName, MAX_PATH, fullPath, NULL)) {
@@ -631,21 +686,13 @@ namespace VFS {
         }
 
         wchar_t gameRoot[MAX_PATH];
-        if (wcslen(g_ArchivePath) > 0) {
-             wcscpy_s(gameRoot, g_ArchivePath);
-             PathRemoveFileSpecW(gameRoot);
-        } else {
-             wcscpy_s(gameRoot, g_LooseFolderPath);
-             PathRemoveFileSpecW(gameRoot); 
-             PathRemoveFileSpecW(gameRoot); 
-        }
-
-        if (wcslen(gameRoot) < 3) {
-             GetModuleFileNameW(NULL, gameRoot, MAX_PATH);
-             PathRemoveFileSpecW(gameRoot);
-        }
+        GetModuleFileNameW(NULL, gameRoot, MAX_PATH);
+        PathRemoveFileSpecW(gameRoot);
 
         std::wstring searchDirNorm = NormalizePath(searchDir.c_str());
+        if (!searchDirNorm.empty() && searchDirNorm.back() == L'\\') {
+            searchDirNorm.pop_back();
+        }
         
         std::lock_guard<std::recursive_mutex> lock(g_Mutex);
         
@@ -660,7 +707,12 @@ namespace VFS {
             wcscpy_s(vDir, vFullPath);
             PathRemoveFileSpecW(vDir);
             
-            if (_wcsicmp(vDir, searchDir.c_str()) == 0) {
+            std::wstring vDirNorm = NormalizePath(vDir);
+            if (!vDirNorm.empty() && vDirNorm.back() == L'\\') {
+                vDirNorm.pop_back();
+            }
+            
+            if (vDirNorm == searchDirNorm) {
                 const wchar_t* fileName = PathFindFileNameW(vFullPath);
                 if (PathMatchSpecW(fileName, pattern.c_str())) {
                     state->matches.push_back(const_cast<VirtualFileEntry*>(&entry));
@@ -668,9 +720,10 @@ namespace VFS {
             }
         }
         
-        if (!state->usingRealHandle && state->matches.empty()) {
+        if (state->matches.empty()) {
+            HANDLE real = state->realHandle;
             delete state;
-            return INVALID_HANDLE_VALUE;
+            return real;
         }
         
         if (!state->usingRealHandle && !state->matches.empty()) {
@@ -693,7 +746,12 @@ namespace VFS {
              return FindFirstFileW(lpFileName, lpFindFileData);
         }
 
-        Utils::Log("[VFS-Find] Start: %S", lpFileName);
+        if (Config::EnableDebug && ShouldLogPath(lpFileName)) {
+            if (wcscmp(lpFileName, g_LastFindLog) != 0) {
+                Utils::LogW(L"[VFS-Find] Start: %s", lpFileName);
+                wcscpy_s(g_LastFindLog, lpFileName);
+            }
+        }
 
         __try {
             return VirtualFindFirstFileW_Internal(lpFileName, lpFindFileData);
@@ -708,7 +766,7 @@ namespace VFS {
         std::lock_guard<std::recursive_mutex> lock(g_Mutex);
         auto it = g_FindMap.find(hFindFile);
         if (it == g_FindMap.end()) {
-             return FALSE; 
+             return g_OrigFindNextFileW(hFindFile, lpFindFileData);
         }
         
         VirtualFindState* state = it->second;
@@ -759,13 +817,13 @@ namespace VFS {
 
     static HANDLE VirtualFindFirstFileA_Internal(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData) {
         wchar_t fileNameW[MAX_PATH];
-        MultiByteToWideChar(CP_ACP, 0, lpFileName, -1, fileNameW, MAX_PATH);
+        MultiByteToWideChar(Config::LE_Codepage, 0, lpFileName, -1, fileNameW, MAX_PATH);
 
         WIN32_FIND_DATAW findDataW;
         HANDLE hFind = VirtualFindFirstFileW_Internal(fileNameW, &findDataW);
 
         if (hFind != INVALID_HANDLE_VALUE) {
-            WideCharToMultiByte(CP_ACP, 0, findDataW.cFileName, -1, lpFindFileData->cFileName, MAX_PATH, NULL, NULL);
+            WideCharToMultiByte(Config::LE_Codepage, 0, findDataW.cFileName, -1, lpFindFileData->cFileName, MAX_PATH, NULL, NULL);
             lpFindFileData->dwFileAttributes = findDataW.dwFileAttributes;
             lpFindFileData->ftCreationTime = findDataW.ftCreationTime;
             lpFindFileData->ftLastAccessTime = findDataW.ftLastAccessTime;
@@ -785,7 +843,12 @@ namespace VFS {
              return FindFirstFileA(lpFileName, lpFindFileData);
         }
 
-        Utils::Log("[VFS-FindA] Start: %s", lpFileName);
+        if (Config::EnableDebug && ShouldLogPathA(lpFileName)) {
+            if (strcmp(lpFileName, g_LastFindLogA) != 0) {
+                Utils::Log("[VFS-FindA] Start: %s", lpFileName);
+                strcpy_s(g_LastFindLogA, lpFileName);
+            }
+        }
         
         __try {
             return VirtualFindFirstFileA_Internal(lpFileName, lpFindFileData);
@@ -799,7 +862,7 @@ namespace VFS {
     static BOOL VirtualFindNextFileA_Internal(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData) {
         WIN32_FIND_DATAW findDataW;
         if (VirtualFindNextFileW_Internal(hFindFile, &findDataW)) {
-            WideCharToMultiByte(CP_ACP, 0, findDataW.cFileName, -1, lpFindFileData->cFileName, MAX_PATH, NULL, NULL);
+            WideCharToMultiByte(Config::LE_Codepage, 0, findDataW.cFileName, -1, lpFindFileData->cFileName, MAX_PATH, NULL, NULL);
             lpFindFileData->dwFileAttributes = findDataW.dwFileAttributes;
             lpFindFileData->ftCreationTime = findDataW.ftCreationTime;
             lpFindFileData->ftLastAccessTime = findDataW.ftLastAccessTime;

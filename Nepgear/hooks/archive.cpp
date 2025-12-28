@@ -1,4 +1,4 @@
-﻿#include "../pch.h"
+#include "../pch.h"
 #include "archive.h"
 #include "config.h"
 #include "utils.h"
@@ -56,7 +56,7 @@ namespace Archive {
         PathRemoveFileSpecW(archivePath);
         PathAppendW(archivePath, Config::ArchiveFileName);
 
-        Utils::Log("[Archive] Looking for dat at: %S", archivePath);
+        Utils::LogW(L"[Archive] Looking for dat at: %s", archivePath);
 
         if (!PathFileExistsW(archivePath)) {
              wchar_t fallbackPath[MAX_PATH];
@@ -64,14 +64,14 @@ namespace Archive {
              PathRemoveFileSpecW(fallbackPath);
              PathAppendW(fallbackPath, Config::RedirectFolderW);
              PathAppendW(fallbackPath, Config::ArchiveFileName);
-             Utils::Log("[Archive] Archive not found in root, checking fallback: %S", fallbackPath);
+             Utils::LogW(L"[Archive] Archive not found in root, checking fallback: %s", fallbackPath);
              if (PathFileExistsW(fallbackPath)) {
                  wcscpy_s(archivePath, fallbackPath);
              }
         }
 
         if (!PathFileExistsW(archivePath)) {
-            Utils::Log("[Archive] ERROR: %S NOT FOUND!", archivePath);
+            Utils::LogW(L"[Archive] ERROR: %s NOT FOUND!", archivePath);
             return false;
         }
 
@@ -80,9 +80,9 @@ namespace Archive {
         PathAppendW(tempPath, Config::RedirectFolderW);
 
         wcscpy_s(g_TempRootW, tempPath);
-        WideCharToMultiByte(CP_ACP, 0, g_TempRootW, -1, g_TempRootA, MAX_PATH, NULL, NULL);
+        WideCharToMultiByte(Config::LE_Codepage, 0, g_TempRootW, -1, g_TempRootA, MAX_PATH, NULL, NULL);
 
-        Utils::Log("[Archive] Extracting to: %S", g_TempRootW);
+        Utils::LogW(L"[Archive] Extracting to: %s", g_TempRootW);
 
         if (PathIsDirectoryW(g_TempRootW)) DeleteDirRecursive(g_TempRootW);
         if (!CreateDirectoryW(g_TempRootW, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
@@ -92,7 +92,7 @@ namespace Archive {
 
         HANDLE hFile = CreateFileW(archivePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
-            Utils::Log("[Archive] ERROR: Cannot open %S", Config::ArchiveFileName);
+            Utils::LogW(L"[Archive] ERROR: Cannot open %s", Config::ArchiveFileName);
             return false;
         }
 
@@ -106,7 +106,7 @@ namespace Archive {
 
         wchar_t* fileExt = PathFindExtensionW(Config::ArchiveFileName);
         if (fileExt && *fileExt == L'.') fileExt++;
-        Utils::Log("[Archive] Found %d files in %S.", fileCount, fileExt);
+        Utils::LogW(L"[Archive] Found %d files in %s.", fileCount, fileExt);
 
         const int CHUNK_SIZE = 4096;
         std::vector<char> buffer(CHUNK_SIZE);
@@ -119,7 +119,7 @@ namespace Archive {
             if (!ReadFile(hFile, relPath.data(), pathLen, &bytesRead, NULL)) break;
 
             wchar_t relPathW[MAX_PATH];
-            MultiByteToWideChar(CP_ACP, 0, relPath.data(), -1, relPathW, MAX_PATH);
+            MultiByteToWideChar(Config::LE_Codepage, 0, relPath.data(), -1, relPathW, MAX_PATH);
 
             wchar_t destPath[MAX_PATH];
             wcscpy_s(destPath, g_TempRootW);

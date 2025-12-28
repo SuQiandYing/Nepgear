@@ -1,4 +1,4 @@
-﻿#include "../pch.h"
+#include "../pch.h"
 #include "config.h"
 #include <shlwapi.h>
 #include <stdlib.h>
@@ -13,7 +13,7 @@ namespace Config {
     wchar_t FontFileName[MAX_PATH] = L"galgame_cnjp.ttf";
     wchar_t ForcedFontNameW[64] = L"galgame";
     char    ForcedFontNameA[64] = "galgame";
-    DWORD   ForcedCharset = 128;
+    DWORD   ForcedCharset = 1;
     bool    EnableFaceNameReplace = true;
     bool    EnableCharsetReplace = true;
     bool    EnableFontHeightScale = false;
@@ -42,7 +42,7 @@ namespace Config {
     bool    EnableLogToFile = false;
 
     static void WCharToChar(const wchar_t* src, char* dest, int destSize) {
-        WideCharToMultiByte(CP_ACP, 0, src, -1, dest, destSize, NULL, NULL);
+        WideCharToMultiByte(LE_Codepage, 0, src, -1, dest, destSize, NULL, NULL);
     }
 
     void LoadConfiguration(HMODULE hModule) {

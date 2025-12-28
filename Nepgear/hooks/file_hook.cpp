@@ -1,4 +1,4 @@
-﻿#include "../pch.h"
+#include "../pch.h"
 #include <windows.h>
 #include <stdio.h>
 #include <shlwapi.h>
@@ -72,8 +72,8 @@ void InitPaths() {
         g_GameRootLenW = wcslen(g_GameRootW);
     }
 
-    Utils::Log("[Path] GameRootW: %S", g_GameRootW);
-    Utils::Log("[Path] GameRootA: %s", g_GameRootA);
+    Utils::LogW(L"[Path] GameRootW: %s", g_GameRootW);
+    Utils::LogW(L"[Path] GameRootA: %S", g_GameRootA);
 
     g_Initialized = true;
 }

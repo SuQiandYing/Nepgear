@@ -1,4 +1,4 @@
-﻿#include "../pch.h"
+#include "../pch.h"
 #include "window_hook.h"
 #include "config.h"
 #include "utils.h"
@@ -16,22 +16,14 @@ static pSetWindowTextW orgSetWindowTextW = SetWindowTextW;
 
 bool ShouldModifyWindow(HWND hWnd) {
     if (!hWnd) return false;
-
     LONG_PTR style = GetWindowLongPtrW(hWnd, GWL_STYLE);
-
-    if (style & WS_CHILD) {
-        return false;
-    }
-
-    if ((style & WS_CAPTION) != WS_CAPTION) {
-        return false;
-    }
+    if (style & WS_CHILD) return false;
+    if ((style & WS_CAPTION) != WS_CAPTION) return false;
     return true;
 }
 
 void ForceUnicodeTitle(HWND hWnd) {
     if (!ShouldModifyWindow(hWnd)) return;
-
     if (Config::CustomTitleW[0] != L'\0' && wcsstr(Config::CustomTitleW, L"????") == NULL) {
         DefWindowProcW(hWnd, WM_SETTEXT, 0, (LPARAM)Config::CustomTitleW);
         SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
@@ -41,19 +33,14 @@ void ForceUnicodeTitle(HWND hWnd) {
 HWND WINAPI newCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
 {
     HWND hWnd = orgCreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
-
-    if (hWnd) {
-        ForceUnicodeTitle(hWnd);
-    }
+    if (hWnd) ForceUnicodeTitle(hWnd);
     return hWnd;
 }
 
 BOOL WINAPI newSetWindowTextA(HWND hWnd, LPCSTR lpString)
 {
     if (Config::CustomTitleW[0] != L'\0' && ShouldModifyWindow(hWnd)) {
-        if (Config::EnableDebug) {
-            Utils::Log("[Window] Replacing Title (A): '%s' -> Custom", lpString ? lpString : "NULL");
-        }
+        if (Config::EnableDebug) Utils::Log("[Window] Replacing Title (A): '%s' -> Custom", lpString ? lpString : "NULL");
         ForceUnicodeTitle(hWnd);
         return TRUE;
     }
@@ -63,9 +50,7 @@ BOOL WINAPI newSetWindowTextA(HWND hWnd, LPCSTR lpString)
 BOOL WINAPI newSetWindowTextW(HWND hWnd, LPCWSTR lpString)
 {
     if (Config::CustomTitleW[0] != L'\0' && ShouldModifyWindow(hWnd)) {
-        if (Config::EnableDebug) {
-            Utils::Log("[Window] Replacing Title (W): '%S' -> Custom", lpString ? lpString : L"NULL");
-        }
+        if (Config::EnableDebug) Utils::LogW(L"[Window] Replacing Title (W): '%s' -> Custom", lpString ? lpString : L"NULL");
         ForceUnicodeTitle(hWnd);
         return TRUE;
     }
@@ -81,11 +66,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam) {
     if (processId == GetCurrentProcessId() && IsWindowVisible(hWnd) && ShouldModifyWindow(hWnd)) {
         wchar_t currentTitle[256] = { 0 };
         DefWindowProcW(hWnd, WM_GETTEXT, 255, (LPARAM)currentTitle);
-
-        if (Config::CustomTitleW[0] != L'\0' &&
-            wcsstr(Config::CustomTitleW, L"????") == NULL &&
-            wcscmp(currentTitle, Config::CustomTitleW) != 0)
-        {
+        if (Config::CustomTitleW[0] != L'\0' && wcsstr(Config::CustomTitleW, L"????") == NULL && wcscmp(currentTitle, Config::CustomTitleW) != 0) {
             ForceUnicodeTitle(hWnd);
         }
     }
@@ -103,14 +84,11 @@ DWORD WINAPI TitleCorrectionThread(LPVOID lpParam) {
 namespace Hooks {
     void InstallWindowHook() {
         if (!Config::EnableWindowTitleHook) return;
-
-        DetourTransactionBegin();
-        DetourUpdateThread(GetCurrentThread());
+        DetourTransactionBegin(); DetourUpdateThread(GetCurrentThread());
         DetourAttach(&(PVOID&)orgCreateWindowExA, newCreateWindowExA);
         DetourAttach(&(PVOID&)orgSetWindowTextA, newSetWindowTextA);
         DetourAttach(&(PVOID&)orgSetWindowTextW, newSetWindowTextW);
         DetourTransactionCommit();
-
         g_hTitleThread = CreateThread(NULL, 0, TitleCorrectionThread, NULL, 0, NULL);
         Utils::Log("[Core] Window Hook Installed.");
     }
