@@ -132,6 +132,7 @@ namespace VFS {
             }
 
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                Utils::LogW(L"[VFS] Entering directory: '%s'", fullPath);
                 ScanLooseFiles(basePath, fullPath, relativePath);
             } else {
                 VirtualFileEntry entry;
@@ -145,9 +146,7 @@ namespace VFS {
                 std::wstring normalizedPath = NormalizePath(relativePath);
                 g_FileIndex[normalizedPath] = entry;
 
-                if (Config::EnableDebug) {
-                    Utils::LogW(L"[VFS] Loose file indexed: %s", relativePath);
-                }
+                Utils::LogW(L"[VFS] Loose file indexed: key='%s' path='%s'", normalizedPath.c_str(), fullPath);
             }
         } while (FindNextFileW(hFind, &fd));
 
@@ -294,14 +293,16 @@ namespace VFS {
         if (!g_IsActive || !relativePath) return false;
         std::wstring normalized = NormalizePath(relativePath);
         std::lock_guard<std::recursive_mutex> lock(g_Mutex);
-        return g_FileIndex.find(normalized) != g_FileIndex.end();
+        bool found = g_FileIndex.find(normalized) != g_FileIndex.end();
+        return found;
     }
 
     bool HasVirtualFileA(const char* relativePath) {
         if (!g_IsActive || !relativePath) return false;
         std::wstring normalized = NormalizePathA(relativePath);
         std::lock_guard<std::recursive_mutex> lock(g_Mutex);
-        return g_FileIndex.find(normalized) != g_FileIndex.end();
+        bool found = g_FileIndex.find(normalized) != g_FileIndex.end();
+        return found;
     }
 
     HANDLE OpenVirtualFile(const wchar_t* relativePath) {

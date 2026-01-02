@@ -73,7 +73,7 @@ void InitPaths() {
     }
 
     Utils::LogW(L"[Path] GameRootW: %s", g_GameRootW);
-    Utils::LogW(L"[Path] GameRootA: %S", g_GameRootA);
+    Utils::Log("[Path] GameRootA: %s", g_GameRootA);
 
     g_Initialized = true;
 }

@@ -30,11 +30,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
             }
         }
 
+        Utils::Log("[Core] About to show popup...");
         Utils::ShowStartupPopup();
+        Utils::Log("[Core] Installing file hook...");
         Hooks::InstallFileHook();
+        Utils::Log("[Core] Installing font hook...");
         SetFontHookModule(hModule);
         Hooks::InstallFontHook();
+        Utils::Log("[Core] Installing window hook...");
         Hooks::InstallWindowHook();
+        Utils::Log("[Core] All hooks installed.");
     }
     else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
         Free();
