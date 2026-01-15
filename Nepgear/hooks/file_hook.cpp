@@ -60,7 +60,6 @@ static bool g_Initialized = false;
 
 void InitPaths() {
     if (g_Initialized) return;
-
     if (GetModuleFileNameA(NULL, g_GameRootA, MAX_PATH)) {
         PathRemoveFileSpecA(g_GameRootA);
         PathAddBackslashA(g_GameRootA);
@@ -71,10 +70,8 @@ void InitPaths() {
         PathAddBackslashW(g_GameRootW);
         g_GameRootLenW = wcslen(g_GameRootW);
     }
-
     Utils::LogW(L"[Path] GameRootW: %s", g_GameRootW);
     Utils::Log("[Path] GameRootA: %s", g_GameRootA);
-
     g_Initialized = true;
 }
 
@@ -82,7 +79,6 @@ bool GetRelativePathA(LPCSTR inPath, char* outRelPath) {
     if (!inPath) return false;
     char fullAbsPath[MAX_PATH];
     if (GetFullPathNameA(inPath, MAX_PATH, fullAbsPath, NULL) == 0) return false;
-
     if (_strnicmp(fullAbsPath, g_GameRootA, g_GameRootLenA) == 0) {
         strcpy_s(outRelPath, MAX_PATH, fullAbsPath + g_GameRootLenA);
         return true;
@@ -94,7 +90,6 @@ bool GetRelativePathW(LPCWSTR inPath, wchar_t* outRelPath) {
     if (!inPath) return false;
     wchar_t fullAbsPath[MAX_PATH];
     if (GetFullPathNameW(inPath, MAX_PATH, fullAbsPath, NULL) == 0) return false;
-
     if (_wcsnicmp(fullAbsPath, g_GameRootW, g_GameRootLenW) == 0) {
         wcscpy_s(outRelPath, MAX_PATH, fullAbsPath + g_GameRootLenW);
         return true;
@@ -111,7 +106,6 @@ HANDLE WINAPI newCreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwS
     if (!Config::EnableFileHook || !VFS::IsActive()) {
         return orgCreateFileA(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
     }
-
     __try {
         InitPaths();
         char relPath[MAX_PATH];
@@ -119,7 +113,7 @@ HANDLE WINAPI newCreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwS
             if (VFS::HasVirtualFileA(relPath)) {
                 HANDLE vHandle = VFS::OpenVirtualFileA(relPath);
                 if (vHandle != INVALID_HANDLE_VALUE) {
-                    if (Config::EnableDebug) Utils::Log("[VFS-FileA] %s -> virtual handle %p", lpFileName, vHandle);
+                    if (Config::EnableDebug) Utils::Log("[VFS-FileA] %s -> handle %p", lpFileName, vHandle);
                     return vHandle;
                 }
             }
@@ -135,7 +129,6 @@ HANDLE WINAPI newCreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dw
     if (!Config::EnableFileHook || !VFS::IsActive()) {
         return orgCreateFileW(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
     }
-
     __try {
         InitPaths();
         wchar_t relPath[MAX_PATH];
@@ -143,7 +136,7 @@ HANDLE WINAPI newCreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dw
             if (VFS::HasVirtualFile(relPath)) {
                 HANDLE vHandle = VFS::OpenVirtualFile(relPath);
                 if (vHandle != INVALID_HANDLE_VALUE) {
-                    if (Config::EnableDebug) Utils::Log("[VFS-FileW] %S -> virtual handle %p", lpFileName, vHandle);
+                    if (Config::EnableDebug) Utils::Log("[VFS-FileW] %S -> handle %p", lpFileName, vHandle);
                     return vHandle;
                 }
             }
@@ -255,12 +248,11 @@ DWORD WINAPI newGetFileAttributesA(LPCSTR lpFileName) {
     if (!Config::EnableFileHook || !VFS::IsActive()) {
         return orgGetFileAttributesA(lpFileName);
     }
-
     InitPaths();
     char relPath[MAX_PATH];
     if (GetRelativePathA(lpFileName, relPath)) {
         if (VFS::HasVirtualFileA(relPath)) {
-            if (Config::EnableDebug) Utils::Log("[VFS-AttribA] %s exists in VFS", lpFileName);
+            if (Config::EnableDebug) Utils::Log("[VFS-AttribA] %s exists", lpFileName);
             return FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
         }
     }
@@ -271,12 +263,11 @@ DWORD WINAPI newGetFileAttributesW(LPCWSTR lpFileName) {
     if (!Config::EnableFileHook || !VFS::IsActive()) {
         return orgGetFileAttributesW(lpFileName);
     }
-
     InitPaths();
     wchar_t relPath[MAX_PATH];
     if (GetRelativePathW(lpFileName, relPath)) {
         if (VFS::HasVirtualFile(relPath)) {
-            if (Config::EnableDebug) Utils::Log("[VFS-AttribW] %S exists in VFS", lpFileName);
+            if (Config::EnableDebug) Utils::Log("[VFS-AttribW] %S exists", lpFileName);
             return FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
         }
     }
@@ -287,7 +278,6 @@ BOOL WINAPI newGetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fI
     if (!Config::EnableFileHook || !VFS::IsActive()) {
         return orgGetFileAttributesExA(lpFileName, fInfoLevelId, lpFileInformation);
     }
-
     InitPaths();
     char relPath[MAX_PATH];
     if (GetRelativePathA(lpFileName, relPath)) {
@@ -299,10 +289,15 @@ BOOL WINAPI newGetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fI
                     ZeroMemory(data, sizeof(WIN32_FILE_ATTRIBUTE_DATA));
                     data->dwFileAttributes = FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
                     DWORD sizeHigh = 0;
-                    data->nFileSizeLow = VFS::GetVirtualFileSize(vHandle, &sizeHigh);
+                    if (IsVirtualHandleRange(vHandle)) {
+                        data->nFileSizeLow = VFS::GetVirtualFileSize(vHandle, &sizeHigh);
+                        VFS::CloseVirtualHandle(vHandle);
+                    } else {
+                        data->nFileSizeLow = GetFileSize(vHandle, &sizeHigh);
+                        CloseHandle(vHandle);
+                    }
                     data->nFileSizeHigh = sizeHigh;
                 }
-                VFS::CloseVirtualHandle(vHandle);
                 return TRUE;
             }
         }
@@ -314,7 +309,6 @@ BOOL WINAPI newGetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS f
     if (!Config::EnableFileHook || !VFS::IsActive()) {
         return orgGetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
     }
-
     InitPaths();
     wchar_t relPath[MAX_PATH];
     if (GetRelativePathW(lpFileName, relPath)) {
@@ -326,10 +320,15 @@ BOOL WINAPI newGetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS f
                     ZeroMemory(data, sizeof(WIN32_FILE_ATTRIBUTE_DATA));
                     data->dwFileAttributes = FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY;
                     DWORD sizeHigh = 0;
-                    data->nFileSizeLow = VFS::GetVirtualFileSize(vHandle, &sizeHigh);
+                    if (IsVirtualHandleRange(vHandle)) {
+                        data->nFileSizeLow = VFS::GetVirtualFileSize(vHandle, &sizeHigh);
+                        VFS::CloseVirtualHandle(vHandle);
+                    } else {
+                        data->nFileSizeLow = GetFileSize(vHandle, &sizeHigh);
+                        CloseHandle(vHandle);
+                    }
                     data->nFileSizeHigh = sizeHigh;
                 }
-                VFS::CloseVirtualHandle(vHandle);
                 return TRUE;
             }
         }
@@ -376,7 +375,6 @@ namespace Hooks {
     void InstallFileHook() {
         if (!Config::EnableFileHook) return;
         InitPaths();
-
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
         DetourAttach(&(PVOID&)orgCreateFileA, newCreateFileA);
@@ -392,7 +390,6 @@ namespace Hooks {
         DetourAttach(&(PVOID&)orgGetFileAttributesA, newGetFileAttributesA);
         DetourAttach(&(PVOID&)orgGetFileAttributesW, newGetFileAttributesW);
         DetourAttach(&(PVOID&)orgGetFileAttributesExA, newGetFileAttributesExA);
-
         DetourAttach(&(PVOID&)orgGetFileAttributesExW, newGetFileAttributesExW);
         DetourAttach(&(PVOID&)orgFindFirstFileW, newFindFirstFileW);
         DetourAttach(&(PVOID&)orgFindNextFileW, newFindNextFileW);
@@ -400,10 +397,8 @@ namespace Hooks {
         DetourAttach(&(PVOID&)orgFindNextFileA, newFindNextFileA);
         DetourAttach(&(PVOID&)orgFindClose, newFindClose);
         DetourTransactionCommit();
-
         VFS::SetOriginalFunctions((void*)orgReadFile, (void*)orgSetFilePointerEx, (void*)orgCloseHandle);
         VFS::SetFindFunctions((void*)orgFindFirstFileW, (void*)orgFindNextFileW, (void*)orgFindClose, (void*)orgFindFirstFileA, (void*)orgFindNextFileA);
-
         Utils::Log("[Core] VFS File Hook Installed.");
     }
 }
