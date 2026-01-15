@@ -195,7 +195,7 @@ namespace VFS {
                         std::vector<char> relPath(pathLen + 1, '\0');
                         if (!g_RawReadFile(g_ArchiveHandle, relPath.data(), pathLen, &bytesRead, NULL)) break;
                         wchar_t relPathW[MAX_PATH];
-                        MultiByteToWideChar(Config::LE_Codepage, 0, relPath.data(), -1, relPathW, MAX_PATH);
+                        MultiByteToWideChar(CP_UTF8, 0, relPath.data(), -1, relPathW, MAX_PATH);
                         int decompressedSize = 0;
                         g_RawReadFile(g_ArchiveHandle, &decompressedSize, sizeof(int), &bytesRead, NULL);
                         int storedSize = 0;
