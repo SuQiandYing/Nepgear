@@ -7,8 +7,8 @@ namespace VFS {
     struct VirtualFileEntry {
         std::wstring relativePath;
         LONGLONG offset;
-        DWORD size;             // Stored size (compressed or raw)
-        DWORD decompressedSize; // Original size
+        DWORD size;
+        DWORD decompressedSize;
         bool isLooseFile;
         std::wstring looseFilePath;
     };
@@ -18,7 +18,7 @@ namespace VFS {
         LONGLONG position;
         HANDLE archiveHandle;
         HANDLE looseFileHandle;
-        PBYTE decompressedBuffer; // Memory for decompressed data
+        PBYTE decompressedBuffer;
         bool isLooseFile;
     };
 

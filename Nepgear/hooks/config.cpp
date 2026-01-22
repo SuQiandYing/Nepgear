@@ -31,6 +31,7 @@ namespace Config {
     wchar_t RedirectFolderW[MAX_PATH] = L"Nepgear";
     char    RedirectFolderA[MAX_PATH] = "Nepgear";
     wchar_t ArchiveFileName[MAX_PATH] = L"Nepgear.chs";
+    int     VFSMode = 0;
 
     bool    EnableLE = true;
     UINT    LE_Codepage = 932;
@@ -97,6 +98,7 @@ namespace Config {
         GetPrivateProfileStringW(L"FileRedirect", L"Folder", RedirectFolderW, RedirectFolderW, MAX_PATH, iniPath);
         WCharToChar(RedirectFolderW, RedirectFolderA, MAX_PATH);
         GetPrivateProfileStringW(L"FileRedirect", L"ArchiveFile", ArchiveFileName, ArchiveFileName, MAX_PATH, iniPath);
+        VFSMode = GetPrivateProfileIntW(L"FileHook", L"VFSMode", 0, iniPath);
 
         EnableLE = GetPrivateProfileIntW(L"LocaleEmulator", L"Enable", 1, iniPath) != 0;
         LE_Codepage = GetPrivateProfileIntW(L"LocaleEmulator", L"CodePage", 932, iniPath);

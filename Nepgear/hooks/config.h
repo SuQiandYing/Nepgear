@@ -26,6 +26,7 @@ namespace Config {
     extern wchar_t RedirectFolderW[MAX_PATH];
     extern char    RedirectFolderA[MAX_PATH];
     extern wchar_t ArchiveFileName[MAX_PATH];
+    extern int     VFSMode; 
 
     extern bool    EnableLE;
     extern UINT    LE_Codepage;

@@ -340,7 +340,7 @@ static pIDWriteTextLayout_Draw orgIDWriteTextLayout_Draw = NULL;
 HRESULT STDMETHODCALLTYPE newIDWriteTextLayout_Draw(IDWriteTextLayout* This, void* clientDrawingContext, IDWriteTextRenderer* renderer, FLOAT originX, FLOAT originY) {
     if (Config::EnableDebug) {
         IDWriteTextFormat* format = NULL;
-        if (SUCCEEDED(This->GetFontFamilyName(NULL, 0))) { // Just a placeholder check
+        if (SUCCEEDED(This->GetFontFamilyName(NULL, 0))) {
             LogFontChange(L"IDWriteTextLayout::Draw: DirectWrite Rendering...");
         }
     }

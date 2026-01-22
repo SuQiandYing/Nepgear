@@ -113,6 +113,12 @@ Folder=Nepgear
 ; 压缩包文件名（如果使用压缩模式）
 ArchiveFile=Nepgear.chs
 
+[FileHook]
+; VFS读取模式
+; 0 ：物理读取模式
+; 1 ：内存读取模式
+VFSMode=0
+
 [LocaleEmulator]
 ; 是否启用区域模拟集成 (0 = 关闭, 1 = 开启)
 ; 只有设置为 1 时才会将 LoaderDll.dll 和 LocaleEmulator.dll 载入游戏根目录并执行区域
