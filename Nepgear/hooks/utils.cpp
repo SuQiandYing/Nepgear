@@ -3,6 +3,7 @@
 #include "config.h"
 #include "vfs.h"
 #include <Shlwapi.h>
+#include <shellapi.h>
 #include <string>
 #include <vector>
 #include <stdio.h>
@@ -11,7 +12,9 @@
 
 #pragma comment(lib, "Shlwapi.lib")
 
-static std::vector<std::wstring> g_deployedLeFiles;
+#include <set>
+
+static std::vector<std::wstring> g_deployedFiles;
 
 static void DebugPrintW(const wchar_t* format, ...) {
     wchar_t wbuf[2048];
@@ -175,7 +178,7 @@ namespace Utils {
 
         int result = MessageBoxW(NULL, msg.c_str(), L"游玩通知", MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST);
         if (result == IDNO) {
-            CleanupLeFiles();
+            CleanupPatchFiles();
             ExitProcess(0);
         }
     }
@@ -317,86 +320,177 @@ namespace Utils {
         }
     }
 
-    BOOL DeployLeFiles(HMODULE hModule) {
-        if (!Config::EnableLE) {
-            return FALSE;
-        }
-
-        const wchar_t* filesToDeploy[] = { L"LoaderDll.dll", L"LocaleEmulator.dll" };
-        const int requiredFileCount = sizeof(filesToDeploy) / sizeof(filesToDeploy[0]);
-
+    BOOL DeployPatchFiles(HMODULE hModule) {
         wchar_t rootPath[MAX_PATH];
         GetModuleFileNameW(NULL, rootPath, MAX_PATH);
         PathRemoveFileSpecW(rootPath);
 
-        int filesDeployed = 0;
+        std::set<std::wstring> filesToDeploy;
+
+        auto IsTargetFile = [](const wchar_t* fileName) {
+            const wchar_t* ext = PathFindExtensionW(fileName);
+            if (!ext) return false;
+            return _wcsicmp(ext, L".dll") == 0 || _wcsicmp(ext, L".ini") == 0;
+        };
+
+        auto ShouldDeploy = [](const wchar_t* fileName) {
+            if (_wcsicmp(fileName, L"LoaderDll.dll") == 0 || _wcsicmp(fileName, L"LocaleEmulator.dll") == 0) {
+                return Config::EnableLE;
+            }
+            return true;
+        };
+
+        if (VFS::IsActive()) {
+            std::vector<std::wstring> vfsFiles;
+            VFS::GetVirtualFileList(vfsFiles);
+            for (const auto& relPath : vfsFiles) {
+                const wchar_t* fileName = PathFindFileNameW(relPath.c_str());
+                if (IsTargetFile(fileName) && ShouldDeploy(fileName)) {
+                    filesToDeploy.insert(fileName);
+                }
+            }
+        }
+
+        wchar_t patchPath[MAX_PATH];
+        const wchar_t* tempRoot = Archive::GetTempRootW();
+        if (tempRoot) {
+            wcscpy_s(patchPath, MAX_PATH, tempRoot);
+        }
+        else {
+            GetModuleFileNameW(hModule, patchPath, MAX_PATH);
+            PathRemoveFileSpecW(patchPath);
+            PathAppendW(patchPath, Config::RedirectFolderW);
+        }
+
+        if (PathFileExistsW(patchPath)) {
+            wchar_t searchPath[MAX_PATH];
+            wcscpy_s(searchPath, patchPath);
+            PathAppendW(searchPath, L"*");
+
+            WIN32_FIND_DATAW fd;
+            HANDLE hFind = FindFirstFileW(searchPath, &fd);
+            if (hFind != INVALID_HANDLE_VALUE) {
+                do {
+                    if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                        if (IsTargetFile(fd.cFileName) && ShouldDeploy(fd.cFileName)) {
+                            filesToDeploy.insert(fd.cFileName);
+                        }
+                    }
+                } while (FindNextFileW(hFind, &fd));
+                FindClose(hFind);
+            }
+        }
+
         for (const auto& fileName : filesToDeploy) {
             wchar_t dstPath[MAX_PATH];
-            swprintf_s(dstPath, MAX_PATH, L"%s\\%s", rootPath, fileName);
+            swprintf_s(dstPath, MAX_PATH, L"%s\\%s", rootPath, fileName.c_str());
 
-            bool extracted = false;
+            bool deployed = false;
 
-            if (VFS::IsActive()) {
-                extracted = VFS::ExtractFile(fileName, dstPath);
-                if (extracted && Config::EnableDebug) {
-                    Log("[LE] Extracted %S from VFS", fileName);
+            if (VFS::IsActive() && VFS::HasVirtualFile(fileName.c_str())) {
+                deployed = VFS::ExtractFile(fileName.c_str(), dstPath);
+                if (deployed && Config::EnableDebug) {
+                    Log("[Deploy] Extracted %S from VFS", fileName.c_str());
                 }
             }
 
-            if (!extracted) {
-                wchar_t patchPath[MAX_PATH];
-                const wchar_t* tempRoot = Archive::GetTempRootW();
-                if (tempRoot) {
-                    wcscpy_s(patchPath, MAX_PATH, tempRoot);
-                }
-                else {
-                    GetModuleFileNameW(hModule, patchPath, MAX_PATH);
-                    PathRemoveFileSpecW(patchPath);
-                    PathAppendW(patchPath, Config::RedirectFolderW);
-                }
-
+            if (!deployed) {
                 wchar_t srcPath[MAX_PATH];
-                swprintf_s(srcPath, MAX_PATH, L"%s\\%s", patchPath, fileName);
-                if (PathFileExistsW(srcPath) && CopyFileW(srcPath, dstPath, FALSE)) {
-                    extracted = true;
-                    if (Config::EnableDebug) {
-                        Log("[LE] Copied %S from patch folder", fileName);
+                swprintf_s(srcPath, MAX_PATH, L"%s\\%s", patchPath, fileName.c_str());
+                if (PathFileExistsW(srcPath)) {
+                    if (CopyFileW(srcPath, dstPath, FALSE)) {
+                        deployed = true;
+                        if (Config::EnableDebug) {
+                            Log("[Deploy] Copied %S from patch folder", fileName.c_str());
+                        }
+                    } else if (GetLastError() == ERROR_SHARING_VIOLATION) {
+                        // File might already be there and in use (e.g. another instance or system dll)
+                        if (Config::EnableDebug) {
+                            Log("[Deploy] Skipped %S (already in use)", fileName.c_str());
+                        }
                     }
                 }
             }
 
-            if (extracted) {
-                g_deployedLeFiles.push_back(dstPath);
-                filesDeployed++;
+            if (deployed || PathFileExistsW(dstPath)) {
+                bool alreadyTracked = false;
+                for (const auto& f : g_deployedFiles) {
+                    if (_wcsicmp(f.c_str(), dstPath) == 0) {
+                        alreadyTracked = true;
+                        break;
+                    }
+                }
+                if (!alreadyTracked) {
+                    g_deployedFiles.push_back(dstPath);
+                }
             }
-        }
-
-        if (filesDeployed < requiredFileCount) {
-            CleanupLeFiles();
-            return FALSE;
         }
 
         return TRUE;
     }
 
-    void CleanupLeFiles() {
-        for (const auto& filePath : g_deployedLeFiles) {
-            DeleteFileW(filePath.c_str());
-            if (Config::EnableDebug) {
-                Log("[LE] Cleaned up: %S", filePath.c_str());
-            }
-        }
-        g_deployedLeFiles.clear();
-
+    void CleanupPatchFiles() {
         wchar_t rootPath[MAX_PATH];
         GetModuleFileNameW(NULL, rootPath, MAX_PATH);
         PathRemoveFileSpecW(rootPath);
 
+        std::vector<std::wstring> failedFiles;
+
+        // 1. Clean up explicitly deployed files
+        for (const auto& filePath : g_deployedFiles) {
+            if (DeleteFileW(filePath.c_str())) {
+                if (Config::EnableDebug) {
+                    Log("[Deploy] Cleaned up: %S", filePath.c_str());
+                }
+            } else if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+                failedFiles.push_back(filePath);
+            }
+        }
+        g_deployedFiles.clear();
+
+        // 2. Clean up LE files (fallback/extra check)
         const wchar_t* leFiles[] = { L"LoaderDll.dll", L"LocaleEmulator.dll" };
         for (const auto& fileName : leFiles) {
             wchar_t filePath[MAX_PATH];
             swprintf_s(filePath, MAX_PATH, L"%s\\%s", rootPath, fileName);
-            DeleteFileW(filePath);
+            if (!DeleteFileW(filePath) && GetLastError() != ERROR_FILE_NOT_FOUND) {
+                // Only add if not already in failed list
+                bool alreadyAdded = false;
+                for (const auto& f : failedFiles) {
+                    if (_wcsicmp(f.c_str(), filePath) == 0) {
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+                if (!alreadyAdded) failedFiles.push_back(filePath);
+            }
+        }
+
+        // 3. Use cmd.exe for delayed cleanup of files that are still in use
+        if (!failedFiles.empty()) {
+            std::wstring cmdLine = L"cmd.exe /c \"ping 127.0.0.1 -n 2 > nul";
+            for (const auto& f : failedFiles) {
+                cmdLine += L" & del /f /q \"";
+                cmdLine += f;
+                cmdLine += L"\"";
+            }
+            cmdLine += L"\"";
+
+            STARTUPINFOW si = { sizeof(si) };
+            PROCESS_INFORMATION pi = { 0 };
+            si.cb = sizeof(si);
+            si.dwFlags = STARTF_USESHOWWINDOW;
+            si.wShowWindow = SW_HIDE;
+
+            if (CreateProcessW(NULL, (LPWSTR)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+                if (Config::EnableDebug) {
+                    Log("[Deploy] Launched cmd.exe for delayed cleanup of %zu files", failedFiles.size());
+                }
+            } else if (Config::EnableDebug) {
+                Log(LOG_ERROR, "[Deploy] Failed to launch cmd.exe for cleanup (Error: %lu)", GetLastError());
+            }
         }
     }
 }

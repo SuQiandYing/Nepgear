@@ -224,13 +224,13 @@ bool PackDirectory(const std::string& inputFolder, const std::string& outputFile
 }
 
 int main(int argc, char* argv[]) {
-    SetConsoleTitleA("Ultimate VFS Packer (UTF-8 Mode)");
+    SetConsoleTitleA("Ultimate VFS Packer");
     SetColor(7);
 
     if (argc < 2) {
         SetColor(11);
         printf("========================================\n");
-        printf("      VFS Packer Tool v2.0 (UTF-8)      \n");
+        printf("      VFS Packer Tool      \n");
         printf("========================================\n\n");
         SetColor(7);
         printf("Usage: Drag folder(s) onto this EXE.\n\n");

@@ -53,4 +53,5 @@ namespace VFS {
     BOOL VirtualFindClose(HANDLE hFindFile);
 
     bool ExtractFile(const wchar_t* relativePath, const wchar_t* destPath);
+    void GetVirtualFileList(std::vector<std::wstring>& fileList);
 }

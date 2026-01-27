@@ -15,6 +15,6 @@ namespace Utils {
     void LogW(const wchar_t* format, ...);
     void LogW(LogLevel level, const wchar_t* format, ...);
     void InitConsole();
-    BOOL DeployLeFiles(HMODULE hModule);
-    void CleanupLeFiles();
+    BOOL DeployPatchFiles(HMODULE hModule);
+    void CleanupPatchFiles();
 }

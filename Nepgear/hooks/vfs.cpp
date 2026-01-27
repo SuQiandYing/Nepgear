@@ -949,6 +949,13 @@ namespace Legacy {
         MultiByteToWideChar(Config::LE_Codepage, 0, lpFileName, -1, fileNameW, MAX_PATH);
         return OpenVirtualFile(fileNameW);
     }
+
+    void GetVirtualFileList(std::vector<std::wstring>& fileList) {
+        std::lock_guard<std::recursive_mutex> lock(g_Mutex);
+        for (const auto& kv : g_FileIndex) {
+            fileList.push_back(kv.second.relativePath);
+        }
+    }
 }
 
 namespace Modern {
@@ -1229,6 +1236,13 @@ namespace Modern {
         HANDLE fakeHandle = (HANDLE)(++g_VirtualHandleCounter);
         g_HandleMap[fakeHandle] = vfh;
         return fakeHandle;
+    }
+
+    void GetVirtualFileList(std::vector<std::wstring>& fileList) {
+        std::lock_guard<std::recursive_mutex> lock(g_Mutex);
+        for (const auto& kv : g_FileIndex) {
+            fileList.push_back(kv.second.relativePath);
+        }
     }
 
     bool IsVirtualHandle(HANDLE hFile) {
@@ -1554,5 +1568,10 @@ namespace VFS {
 
     bool ExtractFile(const wchar_t* r, const wchar_t* d) { 
         return (Config::VFSMode == 0) ? Modern::ExtractFile(r, d) : Legacy::ExtractFile(r, d); 
+    }
+
+    void GetVirtualFileList(std::vector<std::wstring>& fileList) {
+        if (Config::VFSMode == 0) Modern::GetVirtualFileList(fileList);
+        else Legacy::GetVirtualFileList(fileList);
     }
 }

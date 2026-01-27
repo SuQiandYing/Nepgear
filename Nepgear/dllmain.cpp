@@ -21,9 +21,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         Utils::InitConsole();
         CrashHandler::Install();
         VFS::Initialize(hModule);
+        Utils::DeployPatchFiles(hModule);
 
         if (Config::EnableLE) {
-            Utils::DeployLeFiles(hModule);
             LocaleEmulator::getInstance().initialize();
             if (LocaleEmulator::getInstance().performLocaleEmulation()) {
                 return TRUE;
@@ -43,7 +43,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     }
     else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
         Free();
-        Utils::CleanupLeFiles();
+        Utils::CleanupPatchFiles();
         VFS::Shutdown();
     }
     return TRUE;
