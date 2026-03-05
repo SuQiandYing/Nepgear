@@ -1,21 +1,21 @@
 #include "../pch.h"
 #include "config.h"
+#include "utils.h"
 #include <shlwapi.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <string>
 
 #pragma comment(lib, "Shlwapi.lib")
 
 namespace Config {
-    bool    IsSystemEnabled = true;
 
-    bool    EnableFontHook = true;
-    wchar_t FontFileName[MAX_PATH] = L"galgame_cnjp.ttf";
-    wchar_t ForcedFontNameW[64] = L"galgame";
-    char    ForcedFontNameA[64] = "galgame";
-    DWORD   ForcedCharset = 1;
+    bool    IsSystemEnabled = true;
+    bool    EnableFontHook = false;
+    wchar_t FontFileName[MAX_PATH] = { 0 };
+    wchar_t ForcedFontNameW[64] = { 0 };
+    char    ForcedFontNameA[64] = { 0 };
+    DWORD   ForcedCharset = DEFAULT_CHARSET;
     bool    EnableFaceNameReplace = true;
-    bool    EnableCharsetReplace = true;
+    bool    EnableCharsetReplace = false;
     bool    EnableFontHeightScale = false;
     double  FontHeightScale = 1.0;
     bool    EnableFontWidthScale = false;
@@ -24,8 +24,9 @@ namespace Config {
     int     FontWeight = 0;
 
     bool    EnableWindowTitleHook = false;
-    wchar_t CustomTitleW[256] = L"Default Title";
-    char    CustomTitleA[256] = "Default Title";
+    int     WindowTitleMode = 2;
+    wchar_t CustomTitleW[256] = { 0 };
+    char    CustomTitleA[256] = { 0 };
 
     bool    EnableFileHook = false;
     wchar_t RedirectFolderW[MAX_PATH] = L"Nepgear";
@@ -33,14 +34,23 @@ namespace Config {
     wchar_t ArchiveFileName[MAX_PATH] = L"Nepgear.chs";
     int     VFSMode = 0;
 
-    bool    EnableLE = true;
+    bool    EnableLE = false;
     UINT    LE_Codepage = 932;
-    UINT    LE_LocaleID = 1041;
     UINT    LE_Charset = 128;
+    UINT    LE_LocaleID = 1041;
     wchar_t LE_Timezone[128] = L"Tokyo Standard Time";
+
+    bool    EnableCodepageSpoof = false;
+    DWORD   SpoofFromCharset = 128;
+    DWORD   SpoofToCharset = 1;
+    DWORD   DetectedCharset = 1;
+    bool    NeedFontReload = false;
+    LONG    ConfigVersion = 1;
 
     bool    EnableDebug = false;
     bool    EnableLogToFile = false;
+    wchar_t IniFileName[MAX_PATH] = L"Nepgear.ini";
+
 
     static void WCharToChar(const wchar_t* src, char* dest, int destSize) {
         WideCharToMultiByte(LE_Codepage, 0, src, -1, dest, destSize, NULL, NULL);
@@ -48,65 +58,86 @@ namespace Config {
 
     void LoadConfiguration(HMODULE hModule) {
         wchar_t iniPath[MAX_PATH];
-        if (GetModuleFileNameW(hModule, iniPath, MAX_PATH)) {
-            PathRemoveFileSpecW(iniPath);
-            PathAppendW(iniPath, L"Nepgear.ini");
-        }
-        else {
+
+        if (!GetModuleFileNameW(hModule, iniPath, MAX_PATH)) {
             MessageBoxW(NULL, L"无法获取模块路径", L"系统错误", MB_OK | MB_ICONERROR);
             ExitProcess(1);
         }
 
+        PathRemoveFileSpecW(iniPath);
+        PathAppendW(iniPath, IniFileName);
+
         if (!PathFileExistsW(iniPath)) {
             wchar_t errorMsg[1024];
-            swprintf_s(errorMsg, 1024, L"启动失败：配置文件丢失！\n\n请确保 'Nepgear.ini' 位于以下路径：\n%s", iniPath);
+            swprintf_s(errorMsg, 1024,
+                L"启动失败：配置文件丢失！\n\n请确保 '%s' 位于以下路径：\n%s",
+                IniFileName, iniPath);
             MessageBoxW(NULL, errorMsg, L"错误", MB_OK | MB_ICONERROR | MB_TOPMOST);
             ExitProcess(1);
         }
 
-        IsSystemEnabled = GetPrivateProfileIntW(L"System", L"Enable", 1, iniPath) != 0;
+        const wchar_t* ini = iniPath;
+
+
+        IsSystemEnabled = GetPrivateProfileIntW(L"System", L"Enable", 1, ini) != 0;
         if (!IsSystemEnabled) return;
 
-        EnableFontHook = GetPrivateProfileIntW(L"Font", L"Enable", 1, iniPath) != 0;
-        GetPrivateProfileStringW(L"Font", L"FileName", FontFileName, FontFileName, MAX_PATH, iniPath);
-        GetPrivateProfileStringW(L"Font", L"FaceName", ForcedFontNameW, ForcedFontNameW, 64, iniPath);
-        WCharToChar(ForcedFontNameW, ForcedFontNameA, 64);
-        ForcedCharset = GetPrivateProfileIntW(L"Font", L"Charset", ForcedCharset, iniPath);
-        EnableFaceNameReplace = GetPrivateProfileIntW(L"Font", L"EnableFaceNameReplace", 1, iniPath) != 0;
-        EnableCharsetReplace = GetPrivateProfileIntW(L"Font", L"EnableCharsetReplace", 1, iniPath) != 0;
 
-        EnableFontHeightScale = GetPrivateProfileIntW(L"Font", L"EnableHeightScale", 0, iniPath) != 0;
-        wchar_t tempScale[32];
-        GetPrivateProfileStringW(L"Font", L"HeightScale", L"1.0", tempScale, 32, iniPath);
-        FontHeightScale = _wtof(tempScale);
+        EnableFontHook = GetPrivateProfileIntW(L"Font", L"Enable", 0, ini) != 0;
+        GetPrivateProfileStringW(L"Font", L"FileName", L"", FontFileName, MAX_PATH, ini);
+        GetPrivateProfileStringW(L"Font", L"FaceName", L"", ForcedFontNameW, 64, ini);
+        WCharToChar(ForcedFontNameW, ForcedFontNameA, 64);
+        ForcedCharset = GetPrivateProfileIntW(L"Font", L"Charset", DEFAULT_CHARSET, ini);
+        EnableFaceNameReplace = GetPrivateProfileIntW(L"Font", L"EnableFaceNameReplace", 1, ini) != 0;
+        EnableCharsetReplace  = GetPrivateProfileIntW(L"Font", L"EnableCharsetReplace",  0, ini) != 0;
+
+        EnableFontHeightScale = GetPrivateProfileIntW(L"Font", L"EnableHeightScale", 0, ini) != 0;
+        wchar_t scaleBuffer[32];
+        GetPrivateProfileStringW(L"Font", L"HeightScale", L"1.0", scaleBuffer, 32, ini);
+        FontHeightScale = _wtof(scaleBuffer);
         if (FontHeightScale <= 0.0) FontHeightScale = 1.0;
 
-        EnableFontWidthScale = GetPrivateProfileIntW(L"Font", L"EnableWidthScale", 0, iniPath) != 0;
-        wchar_t tempWidthScale[32];
-        GetPrivateProfileStringW(L"Font", L"WidthScale", L"1.0", tempWidthScale, 32, iniPath);
-        FontWidthScale = _wtof(tempWidthScale);
+        EnableFontWidthScale = GetPrivateProfileIntW(L"Font", L"EnableWidthScale", 0, ini) != 0;
+        GetPrivateProfileStringW(L"Font", L"WidthScale", L"1.0", scaleBuffer, 32, ini);
+        FontWidthScale = _wtof(scaleBuffer);
         if (FontWidthScale <= 0.0) FontWidthScale = 1.0;
 
-        EnableFontWeight = GetPrivateProfileIntW(L"Font", L"EnableWeight", 0, iniPath) != 0;
-        FontWeight = GetPrivateProfileIntW(L"Font", L"Weight", FontWeight, iniPath);
+        EnableFontWeight = GetPrivateProfileIntW(L"Font", L"EnableWeight", 0, ini) != 0;
+        FontWeight = GetPrivateProfileIntW(L"Font", L"Weight", 0, ini);
 
-        EnableWindowTitleHook = GetPrivateProfileIntW(L"Window", L"Enable", 0, iniPath) != 0;
-        GetPrivateProfileStringW(L"Window", L"Title", CustomTitleW, CustomTitleW, 256, iniPath);
+        EnableCodepageSpoof = GetPrivateProfileIntW(L"Font", L"EnableCodepageSpoof", 0, ini) != 0;
+        SpoofFromCharset = GetPrivateProfileIntW(L"Font", L"SpoofFromCharset", 128, ini);
+        SpoofToCharset   = GetPrivateProfileIntW(L"Font", L"SpoofToCharset",   1,   ini);
+
+
+        EnableWindowTitleHook = GetPrivateProfileIntW(L"Window", L"Enable", 0, ini) != 0;
+        WindowTitleMode = GetPrivateProfileIntW(L"Window", L"TitleMode", 2, ini);
+        GetPrivateProfileStringW(L"Window", L"Title", L"", CustomTitleW, 256, ini);
         WCharToChar(CustomTitleW, CustomTitleA, 256);
 
-        EnableFileHook = GetPrivateProfileIntW(L"FileRedirect", L"Enable", 0, iniPath) != 0;
-        GetPrivateProfileStringW(L"FileRedirect", L"Folder", RedirectFolderW, RedirectFolderW, MAX_PATH, iniPath);
+
+        EnableFileHook = GetPrivateProfileIntW(L"FileRedirect", L"Enable", 0, ini) != 0;
+        GetPrivateProfileStringW(L"FileRedirect", L"Folder", L"Nepgear", RedirectFolderW, MAX_PATH, ini);
         WCharToChar(RedirectFolderW, RedirectFolderA, MAX_PATH);
-        GetPrivateProfileStringW(L"FileRedirect", L"ArchiveFile", ArchiveFileName, ArchiveFileName, MAX_PATH, iniPath);
-        VFSMode = GetPrivateProfileIntW(L"FileHook", L"VFSMode", 0, iniPath);
+        GetPrivateProfileStringW(L"FileRedirect", L"ArchiveFile", L"Nepgear.chs", ArchiveFileName, MAX_PATH, ini);
 
-        EnableLE = GetPrivateProfileIntW(L"LocaleEmulator", L"Enable", 1, iniPath) != 0;
-        LE_Codepage = GetPrivateProfileIntW(L"LocaleEmulator", L"CodePage", 932, iniPath);
-        LE_LocaleID = GetPrivateProfileIntW(L"LocaleEmulator", L"LocaleID", 1041, iniPath);
-        LE_Charset = GetPrivateProfileIntW(L"LocaleEmulator", L"Charset", 128, iniPath);
-        GetPrivateProfileStringW(L"LocaleEmulator", L"Timezone", L"Tokyo Standard Time", LE_Timezone, 128, iniPath);
 
-        EnableDebug = GetPrivateProfileIntW(L"Debug", L"Enable", 0, iniPath) != 0;
-        EnableLogToFile = GetPrivateProfileIntW(L"Debug", L"LogToFile", 0, iniPath) != 0;
+        VFSMode = GetPrivateProfileIntW(L"FileHook", L"VFSMode", 0, ini);
+
+
+        EnableLE    = GetPrivateProfileIntW(L"LocaleEmulator", L"Enable",   0,    ini) != 0;
+        LE_Codepage = GetPrivateProfileIntW(L"LocaleEmulator", L"CodePage", 932,  ini);
+        LE_LocaleID = GetPrivateProfileIntW(L"LocaleEmulator", L"LocaleID", 1041, ini);
+        LE_Charset  = GetPrivateProfileIntW(L"LocaleEmulator", L"Charset",  128,  ini);
+        GetPrivateProfileStringW(L"LocaleEmulator", L"Timezone", L"Tokyo Standard Time", LE_Timezone, 128, ini);
+
+
+        EnableDebug    = GetPrivateProfileIntW(L"Debug", L"Enable",    0, ini) != 0;
+        EnableLogToFile = GetPrivateProfileIntW(L"Debug", L"LogToFile", 0, ini) != 0;
+
+        if (EnableDebug) {
+            Utils::Log("[Config] Configuration loaded from: %ls", ini);
+            Utils::Log("[Config] Window Title Mode: %d, Custom Title: %ls", WindowTitleMode, CustomTitleW);
+        }
     }
 }

@@ -9,7 +9,11 @@
 #include "../detours.h"
 #include "vfs.h"
 
+#ifdef _WIN64
+#pragma comment(lib, "detours_x64.lib")
+#else
 #pragma comment(lib, "detours.lib")
+#endif
 #pragma comment(lib, "Shlwapi.lib")
 
 typedef HANDLE(WINAPI* pCreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);

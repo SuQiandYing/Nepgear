@@ -3,6 +3,191 @@
 
 #pragma comment( lib, "Shlwapi.lib")
 
+// ============================================================================
+// Export pragmas - x64 vs x86 name decoration differs
+// x86: __cdecl names have underscore prefix (_AheadLib_xxx)
+// x64: no underscore prefix (AheadLib_xxx)
+// Some functions only exist in 32-bit winmm.dll
+// ============================================================================
+
+#ifdef _WIN64
+
+#pragma comment(linker, "/EXPORT:mciExecute=AheadLib_mciExecute,@3")
+#pragma comment(linker, "/EXPORT:CloseDriver=AheadLib_CloseDriver,@4")
+#pragma comment(linker, "/EXPORT:DefDriverProc=AheadLib_DefDriverProc,@5")
+#pragma comment(linker, "/EXPORT:DriverCallback=AheadLib_DriverCallback,@6")
+#pragma comment(linker, "/EXPORT:DrvGetModuleHandle=AheadLib_DrvGetModuleHandle,@7")
+#pragma comment(linker, "/EXPORT:GetDriverModuleHandle=AheadLib_GetDriverModuleHandle,@8")
+#pragma comment(linker, "/EXPORT:OpenDriver=AheadLib_OpenDriver,@10")
+#pragma comment(linker, "/EXPORT:PlaySound=AheadLib_PlaySound,@11")
+#pragma comment(linker, "/EXPORT:PlaySoundA=AheadLib_PlaySoundA,@12")
+#pragma comment(linker, "/EXPORT:PlaySoundW=AheadLib_PlaySoundW,@13")
+#pragma comment(linker, "/EXPORT:SendDriverMessage=AheadLib_SendDriverMessage,@14")
+#pragma comment(linker, "/EXPORT:auxGetDevCapsA=AheadLib_auxGetDevCapsA,@19")
+#pragma comment(linker, "/EXPORT:auxGetDevCapsW=AheadLib_auxGetDevCapsW,@20")
+#pragma comment(linker, "/EXPORT:auxGetNumDevs=AheadLib_auxGetNumDevs,@21")
+#pragma comment(linker, "/EXPORT:auxGetVolume=AheadLib_auxGetVolume,@22")
+#pragma comment(linker, "/EXPORT:auxOutMessage=AheadLib_auxOutMessage,@23")
+#pragma comment(linker, "/EXPORT:auxSetVolume=AheadLib_auxSetVolume,@24")
+#pragma comment(linker, "/EXPORT:joyConfigChanged=AheadLib_joyConfigChanged,@26")
+#pragma comment(linker, "/EXPORT:joyGetDevCapsA=AheadLib_joyGetDevCapsA,@27")
+#pragma comment(linker, "/EXPORT:joyGetDevCapsW=AheadLib_joyGetDevCapsW,@28")
+#pragma comment(linker, "/EXPORT:joyGetNumDevs=AheadLib_joyGetNumDevs,@29")
+#pragma comment(linker, "/EXPORT:joyGetPos=AheadLib_joyGetPos,@30")
+#pragma comment(linker, "/EXPORT:joyGetPosEx=AheadLib_joyGetPosEx,@31")
+#pragma comment(linker, "/EXPORT:joyGetThreshold=AheadLib_joyGetThreshold,@32")
+#pragma comment(linker, "/EXPORT:joyReleaseCapture=AheadLib_joyReleaseCapture,@33")
+#pragma comment(linker, "/EXPORT:joySetCapture=AheadLib_joySetCapture,@34")
+#pragma comment(linker, "/EXPORT:joySetThreshold=AheadLib_joySetThreshold,@35")
+#pragma comment(linker, "/EXPORT:mciDriverNotify=AheadLib_mciDriverNotify,@37")
+#pragma comment(linker, "/EXPORT:mciDriverYield=AheadLib_mciDriverYield,@38")
+#pragma comment(linker, "/EXPORT:mciFreeCommandResource=AheadLib_mciFreeCommandResource,@39")
+#pragma comment(linker, "/EXPORT:mciGetCreatorTask=AheadLib_mciGetCreatorTask,@40")
+#pragma comment(linker, "/EXPORT:mciGetDeviceIDA=AheadLib_mciGetDeviceIDA,@41")
+#pragma comment(linker, "/EXPORT:mciGetDeviceIDFromElementIDA=AheadLib_mciGetDeviceIDFromElementIDA,@42")
+#pragma comment(linker, "/EXPORT:mciGetDeviceIDFromElementIDW=AheadLib_mciGetDeviceIDFromElementIDW,@43")
+#pragma comment(linker, "/EXPORT:mciGetDeviceIDW=AheadLib_mciGetDeviceIDW,@44")
+#pragma comment(linker, "/EXPORT:mciGetDriverData=AheadLib_mciGetDriverData,@45")
+#pragma comment(linker, "/EXPORT:mciGetErrorStringA=AheadLib_mciGetErrorStringA,@46")
+#pragma comment(linker, "/EXPORT:mciGetErrorStringW=AheadLib_mciGetErrorStringW,@47")
+#pragma comment(linker, "/EXPORT:mciGetYieldProc=AheadLib_mciGetYieldProc,@48")
+#pragma comment(linker, "/EXPORT:mciLoadCommandResource=AheadLib_mciLoadCommandResource,@49")
+#pragma comment(linker, "/EXPORT:mciSendCommandA=AheadLib_mciSendCommandA,@50")
+#pragma comment(linker, "/EXPORT:mciSendCommandW=AheadLib_mciSendCommandW,@51")
+#pragma comment(linker, "/EXPORT:mciSendStringA=AheadLib_mciSendStringA,@52")
+#pragma comment(linker, "/EXPORT:mciSendStringW=AheadLib_mciSendStringW,@53")
+#pragma comment(linker, "/EXPORT:mciSetDriverData=AheadLib_mciSetDriverData,@54")
+#pragma comment(linker, "/EXPORT:mciSetYieldProc=AheadLib_mciSetYieldProc,@55")
+#pragma comment(linker, "/EXPORT:midiConnect=AheadLib_midiConnect,@57")
+#pragma comment(linker, "/EXPORT:midiDisconnect=AheadLib_midiDisconnect,@58")
+#pragma comment(linker, "/EXPORT:midiInAddBuffer=AheadLib_midiInAddBuffer,@59")
+#pragma comment(linker, "/EXPORT:midiInClose=AheadLib_midiInClose,@60")
+#pragma comment(linker, "/EXPORT:midiInGetDevCapsA=AheadLib_midiInGetDevCapsA,@61")
+#pragma comment(linker, "/EXPORT:midiInGetDevCapsW=AheadLib_midiInGetDevCapsW,@62")
+#pragma comment(linker, "/EXPORT:midiInGetErrorTextA=AheadLib_midiInGetErrorTextA,@63")
+#pragma comment(linker, "/EXPORT:midiInGetErrorTextW=AheadLib_midiInGetErrorTextW,@64")
+#pragma comment(linker, "/EXPORT:midiInGetID=AheadLib_midiInGetID,@65")
+#pragma comment(linker, "/EXPORT:midiInGetNumDevs=AheadLib_midiInGetNumDevs,@66")
+#pragma comment(linker, "/EXPORT:midiInMessage=AheadLib_midiInMessage,@67")
+#pragma comment(linker, "/EXPORT:midiInOpen=AheadLib_midiInOpen,@68")
+#pragma comment(linker, "/EXPORT:midiInPrepareHeader=AheadLib_midiInPrepareHeader,@69")
+#pragma comment(linker, "/EXPORT:midiInReset=AheadLib_midiInReset,@70")
+#pragma comment(linker, "/EXPORT:midiInStart=AheadLib_midiInStart,@71")
+#pragma comment(linker, "/EXPORT:midiInStop=AheadLib_midiInStop,@72")
+#pragma comment(linker, "/EXPORT:midiInUnprepareHeader=AheadLib_midiInUnprepareHeader,@73")
+#pragma comment(linker, "/EXPORT:midiOutCacheDrumPatches=AheadLib_midiOutCacheDrumPatches,@74")
+#pragma comment(linker, "/EXPORT:midiOutCachePatches=AheadLib_midiOutCachePatches,@75")
+#pragma comment(linker, "/EXPORT:midiOutClose=AheadLib_midiOutClose,@76")
+#pragma comment(linker, "/EXPORT:midiOutGetDevCapsA=AheadLib_midiOutGetDevCapsA,@77")
+#pragma comment(linker, "/EXPORT:midiOutGetDevCapsW=AheadLib_midiOutGetDevCapsW,@78")
+#pragma comment(linker, "/EXPORT:midiOutGetErrorTextA=AheadLib_midiOutGetErrorTextA,@79")
+#pragma comment(linker, "/EXPORT:midiOutGetErrorTextW=AheadLib_midiOutGetErrorTextW,@80")
+#pragma comment(linker, "/EXPORT:midiOutGetID=AheadLib_midiOutGetID,@81")
+#pragma comment(linker, "/EXPORT:midiOutGetNumDevs=AheadLib_midiOutGetNumDevs,@82")
+#pragma comment(linker, "/EXPORT:midiOutGetVolume=AheadLib_midiOutGetVolume,@83")
+#pragma comment(linker, "/EXPORT:midiOutLongMsg=AheadLib_midiOutLongMsg,@84")
+#pragma comment(linker, "/EXPORT:midiOutMessage=AheadLib_midiOutMessage,@85")
+#pragma comment(linker, "/EXPORT:midiOutOpen=AheadLib_midiOutOpen,@86")
+#pragma comment(linker, "/EXPORT:midiOutPrepareHeader=AheadLib_midiOutPrepareHeader,@87")
+#pragma comment(linker, "/EXPORT:midiOutReset=AheadLib_midiOutReset,@88")
+#pragma comment(linker, "/EXPORT:midiOutSetVolume=AheadLib_midiOutSetVolume,@89")
+#pragma comment(linker, "/EXPORT:midiOutShortMsg=AheadLib_midiOutShortMsg,@90")
+#pragma comment(linker, "/EXPORT:midiOutUnprepareHeader=AheadLib_midiOutUnprepareHeader,@91")
+#pragma comment(linker, "/EXPORT:midiStreamClose=AheadLib_midiStreamClose,@92")
+#pragma comment(linker, "/EXPORT:midiStreamOpen=AheadLib_midiStreamOpen,@93")
+#pragma comment(linker, "/EXPORT:midiStreamOut=AheadLib_midiStreamOut,@94")
+#pragma comment(linker, "/EXPORT:midiStreamPause=AheadLib_midiStreamPause,@95")
+#pragma comment(linker, "/EXPORT:midiStreamPosition=AheadLib_midiStreamPosition,@96")
+#pragma comment(linker, "/EXPORT:midiStreamProperty=AheadLib_midiStreamProperty,@97")
+#pragma comment(linker, "/EXPORT:midiStreamRestart=AheadLib_midiStreamRestart,@98")
+#pragma comment(linker, "/EXPORT:midiStreamStop=AheadLib_midiStreamStop,@99")
+#pragma comment(linker, "/EXPORT:mixerClose=AheadLib_mixerClose,@100")
+#pragma comment(linker, "/EXPORT:mixerGetControlDetailsA=AheadLib_mixerGetControlDetailsA,@101")
+#pragma comment(linker, "/EXPORT:mixerGetControlDetailsW=AheadLib_mixerGetControlDetailsW,@102")
+#pragma comment(linker, "/EXPORT:mixerGetDevCapsA=AheadLib_mixerGetDevCapsA,@103")
+#pragma comment(linker, "/EXPORT:mixerGetDevCapsW=AheadLib_mixerGetDevCapsW,@104")
+#pragma comment(linker, "/EXPORT:mixerGetID=AheadLib_mixerGetID,@105")
+#pragma comment(linker, "/EXPORT:mixerGetLineControlsA=AheadLib_mixerGetLineControlsA,@106")
+#pragma comment(linker, "/EXPORT:mixerGetLineControlsW=AheadLib_mixerGetLineControlsW,@107")
+#pragma comment(linker, "/EXPORT:mixerGetLineInfoA=AheadLib_mixerGetLineInfoA,@108")
+#pragma comment(linker, "/EXPORT:mixerGetLineInfoW=AheadLib_mixerGetLineInfoW,@109")
+#pragma comment(linker, "/EXPORT:mixerGetNumDevs=AheadLib_mixerGetNumDevs,@110")
+#pragma comment(linker, "/EXPORT:mixerMessage=AheadLib_mixerMessage,@111")
+#pragma comment(linker, "/EXPORT:mixerOpen=AheadLib_mixerOpen,@112")
+#pragma comment(linker, "/EXPORT:mixerSetControlDetails=AheadLib_mixerSetControlDetails,@113")
+#pragma comment(linker, "/EXPORT:mmioAdvance=AheadLib_mmioAdvance,@120")
+#pragma comment(linker, "/EXPORT:mmioAscend=AheadLib_mmioAscend,@121")
+#pragma comment(linker, "/EXPORT:mmioClose=AheadLib_mmioClose,@122")
+#pragma comment(linker, "/EXPORT:mmioCreateChunk=AheadLib_mmioCreateChunk,@123")
+#pragma comment(linker, "/EXPORT:mmioDescend=AheadLib_mmioDescend,@124")
+#pragma comment(linker, "/EXPORT:mmioFlush=AheadLib_mmioFlush,@125")
+#pragma comment(linker, "/EXPORT:mmioGetInfo=AheadLib_mmioGetInfo,@126")
+#pragma comment(linker, "/EXPORT:mmioInstallIOProcA=AheadLib_mmioInstallIOProcA,@127")
+#pragma comment(linker, "/EXPORT:mmioInstallIOProcW=AheadLib_mmioInstallIOProcW,@128")
+#pragma comment(linker, "/EXPORT:mmioOpenA=AheadLib_mmioOpenA,@129")
+#pragma comment(linker, "/EXPORT:mmioOpenW=AheadLib_mmioOpenW,@130")
+#pragma comment(linker, "/EXPORT:mmioRead=AheadLib_mmioRead,@131")
+#pragma comment(linker, "/EXPORT:mmioRenameA=AheadLib_mmioRenameA,@132")
+#pragma comment(linker, "/EXPORT:mmioRenameW=AheadLib_mmioRenameW,@133")
+#pragma comment(linker, "/EXPORT:mmioSeek=AheadLib_mmioSeek,@134")
+#pragma comment(linker, "/EXPORT:mmioSendMessage=AheadLib_mmioSendMessage,@135")
+#pragma comment(linker, "/EXPORT:mmioSetBuffer=AheadLib_mmioSetBuffer,@136")
+#pragma comment(linker, "/EXPORT:mmioSetInfo=AheadLib_mmioSetInfo,@137")
+#pragma comment(linker, "/EXPORT:mmioStringToFOURCCA=AheadLib_mmioStringToFOURCCA,@138")
+#pragma comment(linker, "/EXPORT:mmioStringToFOURCCW=AheadLib_mmioStringToFOURCCW,@139")
+#pragma comment(linker, "/EXPORT:mmioWrite=AheadLib_mmioWrite,@140")
+#pragma comment(linker, "/EXPORT:mmsystemGetVersion=AheadLib_mmsystemGetVersion,@141")
+#pragma comment(linker, "/EXPORT:sndPlaySoundA=AheadLib_sndPlaySoundA,@144")
+#pragma comment(linker, "/EXPORT:sndPlaySoundW=AheadLib_sndPlaySoundW,@145")
+#pragma comment(linker, "/EXPORT:timeBeginPeriod=AheadLib_timeBeginPeriod,@147")
+#pragma comment(linker, "/EXPORT:timeEndPeriod=AheadLib_timeEndPeriod,@148")
+#pragma comment(linker, "/EXPORT:timeGetDevCaps=AheadLib_timeGetDevCaps,@149")
+#pragma comment(linker, "/EXPORT:timeGetSystemTime=AheadLib_timeGetSystemTime,@150")
+#pragma comment(linker, "/EXPORT:timeGetTime=AheadLib_timeGetTime,@151")
+#pragma comment(linker, "/EXPORT:timeKillEvent=AheadLib_timeKillEvent,@152")
+#pragma comment(linker, "/EXPORT:timeSetEvent=AheadLib_timeSetEvent,@153")
+#pragma comment(linker, "/EXPORT:waveInAddBuffer=AheadLib_waveInAddBuffer,@154")
+#pragma comment(linker, "/EXPORT:waveInClose=AheadLib_waveInClose,@155")
+#pragma comment(linker, "/EXPORT:waveInGetDevCapsA=AheadLib_waveInGetDevCapsA,@156")
+#pragma comment(linker, "/EXPORT:waveInGetDevCapsW=AheadLib_waveInGetDevCapsW,@157")
+#pragma comment(linker, "/EXPORT:waveInGetErrorTextA=AheadLib_waveInGetErrorTextA,@158")
+#pragma comment(linker, "/EXPORT:waveInGetErrorTextW=AheadLib_waveInGetErrorTextW,@159")
+#pragma comment(linker, "/EXPORT:waveInGetID=AheadLib_waveInGetID,@160")
+#pragma comment(linker, "/EXPORT:waveInGetNumDevs=AheadLib_waveInGetNumDevs,@161")
+#pragma comment(linker, "/EXPORT:waveInGetPosition=AheadLib_waveInGetPosition,@162")
+#pragma comment(linker, "/EXPORT:waveInMessage=AheadLib_waveInMessage,@163")
+#pragma comment(linker, "/EXPORT:waveInOpen=AheadLib_waveInOpen,@164")
+#pragma comment(linker, "/EXPORT:waveInPrepareHeader=AheadLib_waveInPrepareHeader,@165")
+#pragma comment(linker, "/EXPORT:waveInReset=AheadLib_waveInReset,@166")
+#pragma comment(linker, "/EXPORT:waveInStart=AheadLib_waveInStart,@167")
+#pragma comment(linker, "/EXPORT:waveInStop=AheadLib_waveInStop,@168")
+#pragma comment(linker, "/EXPORT:waveInUnprepareHeader=AheadLib_waveInUnprepareHeader,@169")
+#pragma comment(linker, "/EXPORT:waveOutBreakLoop=AheadLib_waveOutBreakLoop,@170")
+#pragma comment(linker, "/EXPORT:waveOutClose=AheadLib_waveOutClose,@171")
+#pragma comment(linker, "/EXPORT:waveOutGetDevCapsA=AheadLib_waveOutGetDevCapsA,@172")
+#pragma comment(linker, "/EXPORT:waveOutGetDevCapsW=AheadLib_waveOutGetDevCapsW,@173")
+#pragma comment(linker, "/EXPORT:waveOutGetErrorTextA=AheadLib_waveOutGetErrorTextA,@174")
+#pragma comment(linker, "/EXPORT:waveOutGetErrorTextW=AheadLib_waveOutGetErrorTextW,@175")
+#pragma comment(linker, "/EXPORT:waveOutGetID=AheadLib_waveOutGetID,@176")
+#pragma comment(linker, "/EXPORT:waveOutGetNumDevs=AheadLib_waveOutGetNumDevs,@177")
+#pragma comment(linker, "/EXPORT:waveOutGetPitch=AheadLib_waveOutGetPitch,@178")
+#pragma comment(linker, "/EXPORT:waveOutGetPlaybackRate=AheadLib_waveOutGetPlaybackRate,@179")
+#pragma comment(linker, "/EXPORT:waveOutGetPosition=AheadLib_waveOutGetPosition,@180")
+#pragma comment(linker, "/EXPORT:waveOutGetVolume=AheadLib_waveOutGetVolume,@181")
+#pragma comment(linker, "/EXPORT:waveOutMessage=AheadLib_waveOutMessage,@182")
+#pragma comment(linker, "/EXPORT:waveOutOpen=AheadLib_waveOutOpen,@183")
+#pragma comment(linker, "/EXPORT:waveOutPause=AheadLib_waveOutPause,@184")
+#pragma comment(linker, "/EXPORT:waveOutPrepareHeader=AheadLib_waveOutPrepareHeader,@185")
+#pragma comment(linker, "/EXPORT:waveOutReset=AheadLib_waveOutReset,@186")
+#pragma comment(linker, "/EXPORT:waveOutRestart=AheadLib_waveOutRestart,@187")
+#pragma comment(linker, "/EXPORT:waveOutSetPitch=AheadLib_waveOutSetPitch,@188")
+#pragma comment(linker, "/EXPORT:waveOutSetPlaybackRate=AheadLib_waveOutSetPlaybackRate,@189")
+#pragma comment(linker, "/EXPORT:waveOutSetVolume=AheadLib_waveOutSetVolume,@190")
+#pragma comment(linker, "/EXPORT:waveOutUnprepareHeader=AheadLib_waveOutUnprepareHeader,@191")
+#pragma comment(linker, "/EXPORT:waveOutWrite=AheadLib_waveOutWrite,@192")
+
+#else // x86
+
 #pragma comment(linker, "/EXPORT:Noname2=_AheadLib_Unnamed2,@2,NONAME")
 #pragma comment(linker, "/EXPORT:mciExecute=_AheadLib_mciExecute,@3")
 #pragma comment(linker, "/EXPORT:CloseDriver=_AheadLib_CloseDriver,@4")
@@ -197,30 +382,54 @@
 #pragma comment(linker, "/EXPORT:wid32Message=_AheadLib_wid32Message,@193")
 #pragma comment(linker, "/EXPORT:wod32Message=_AheadLib_wod32Message,@194")
 
+#endif // _WIN64
+
+// ============================================================================
+// Function pointer variables (shared x86/x64)
+// ============================================================================
+
+extern "C" {
+
+#ifndef _WIN64
 PVOID pfnAheadLib_Unnamed2;
+PVOID pfnAheadLib_NotifyCallbackData;
+PVOID pfnAheadLib_WOW32DriverCallback;
+PVOID pfnAheadLib_WOW32ResolveMultiMediaHandle;
+PVOID pfnAheadLib_WOWAppExit;
+PVOID pfnAheadLib_aux32Message;
+PVOID pfnAheadLib_joy32Message;
+PVOID pfnAheadLib_mci32Message;
+PVOID pfnAheadLib_mid32Message;
+PVOID pfnAheadLib_mod32Message;
+PVOID pfnAheadLib_mxd32Message;
+PVOID pfnAheadLib_tid32Message;
+PVOID pfnAheadLib_wid32Message;
+PVOID pfnAheadLib_wod32Message;
+PVOID pfnAheadLib_mmDrvInstall;
+PVOID pfnAheadLib_mmGetCurrentTask;
+PVOID pfnAheadLib_mmTaskBlock;
+PVOID pfnAheadLib_mmTaskCreate;
+PVOID pfnAheadLib_mmTaskSignal;
+PVOID pfnAheadLib_mmTaskYield;
+#endif
+
 PVOID pfnAheadLib_mciExecute;
 PVOID pfnAheadLib_CloseDriver;
 PVOID pfnAheadLib_DefDriverProc;
 PVOID pfnAheadLib_DriverCallback;
 PVOID pfnAheadLib_DrvGetModuleHandle;
 PVOID pfnAheadLib_GetDriverModuleHandle;
-PVOID pfnAheadLib_NotifyCallbackData;
 PVOID pfnAheadLib_OpenDriver;
 PVOID pfnAheadLib_PlaySound;
 PVOID pfnAheadLib_PlaySoundA;
 PVOID pfnAheadLib_PlaySoundW;
 PVOID pfnAheadLib_SendDriverMessage;
-PVOID pfnAheadLib_WOW32DriverCallback;
-PVOID pfnAheadLib_WOW32ResolveMultiMediaHandle;
-PVOID pfnAheadLib_WOWAppExit;
-PVOID pfnAheadLib_aux32Message;
 PVOID pfnAheadLib_auxGetDevCapsA;
 PVOID pfnAheadLib_auxGetDevCapsW;
 PVOID pfnAheadLib_auxGetNumDevs;
 PVOID pfnAheadLib_auxGetVolume;
 PVOID pfnAheadLib_auxOutMessage;
 PVOID pfnAheadLib_auxSetVolume;
-PVOID pfnAheadLib_joy32Message;
 PVOID pfnAheadLib_joyConfigChanged;
 PVOID pfnAheadLib_joyGetDevCapsA;
 PVOID pfnAheadLib_joyGetDevCapsW;
@@ -231,7 +440,6 @@ PVOID pfnAheadLib_joyGetThreshold;
 PVOID pfnAheadLib_joyReleaseCapture;
 PVOID pfnAheadLib_joySetCapture;
 PVOID pfnAheadLib_joySetThreshold;
-PVOID pfnAheadLib_mci32Message;
 PVOID pfnAheadLib_mciDriverNotify;
 PVOID pfnAheadLib_mciDriverYield;
 PVOID pfnAheadLib_mciFreeCommandResource;
@@ -251,7 +459,6 @@ PVOID pfnAheadLib_mciSendStringA;
 PVOID pfnAheadLib_mciSendStringW;
 PVOID pfnAheadLib_mciSetDriverData;
 PVOID pfnAheadLib_mciSetYieldProc;
-PVOID pfnAheadLib_mid32Message;
 PVOID pfnAheadLib_midiConnect;
 PVOID pfnAheadLib_midiDisconnect;
 PVOID pfnAheadLib_midiInAddBuffer;
@@ -309,12 +516,6 @@ PVOID pfnAheadLib_mixerGetNumDevs;
 PVOID pfnAheadLib_mixerMessage;
 PVOID pfnAheadLib_mixerOpen;
 PVOID pfnAheadLib_mixerSetControlDetails;
-PVOID pfnAheadLib_mmDrvInstall;
-PVOID pfnAheadLib_mmGetCurrentTask;
-PVOID pfnAheadLib_mmTaskBlock;
-PVOID pfnAheadLib_mmTaskCreate;
-PVOID pfnAheadLib_mmTaskSignal;
-PVOID pfnAheadLib_mmTaskYield;
 PVOID pfnAheadLib_mmioAdvance;
 PVOID pfnAheadLib_mmioAscend;
 PVOID pfnAheadLib_mmioClose;
@@ -337,11 +538,8 @@ PVOID pfnAheadLib_mmioStringToFOURCCA;
 PVOID pfnAheadLib_mmioStringToFOURCCW;
 PVOID pfnAheadLib_mmioWrite;
 PVOID pfnAheadLib_mmsystemGetVersion;
-PVOID pfnAheadLib_mod32Message;
-PVOID pfnAheadLib_mxd32Message;
 PVOID pfnAheadLib_sndPlaySoundA;
 PVOID pfnAheadLib_sndPlaySoundW;
-PVOID pfnAheadLib_tid32Message;
 PVOID pfnAheadLib_timeBeginPeriod;
 PVOID pfnAheadLib_timeEndPeriod;
 PVOID pfnAheadLib_timeGetDevCaps;
@@ -388,8 +586,12 @@ PVOID pfnAheadLib_waveOutSetPlaybackRate;
 PVOID pfnAheadLib_waveOutSetVolume;
 PVOID pfnAheadLib_waveOutUnprepareHeader;
 PVOID pfnAheadLib_waveOutWrite;
-PVOID pfnAheadLib_wid32Message;
-PVOID pfnAheadLib_wod32Message;
+
+} // extern "C"
+
+// ============================================================================
+// Shared functions
+// ============================================================================
 
 HMODULE g_OldModule = NULL;
 
@@ -425,30 +627,46 @@ BOOL WINAPI InitHijack()
 		MessageBox(NULL, L"LoadLibrary Handle Null", NULL, NULL);
 	}
 
+#ifndef _WIN64
 	pfnAheadLib_Unnamed2 = GetAddress(MAKEINTRESOURCEA(2));
+	pfnAheadLib_NotifyCallbackData = GetAddress("NotifyCallbackData");
+	pfnAheadLib_WOW32DriverCallback = GetAddress("WOW32DriverCallback");
+	pfnAheadLib_WOW32ResolveMultiMediaHandle = GetAddress("WOW32ResolveMultiMediaHandle");
+	pfnAheadLib_WOWAppExit = GetAddress("WOWAppExit");
+	pfnAheadLib_aux32Message = GetAddress("aux32Message");
+	pfnAheadLib_joy32Message = GetAddress("joy32Message");
+	pfnAheadLib_mci32Message = GetAddress("mci32Message");
+	pfnAheadLib_mid32Message = GetAddress("mid32Message");
+	pfnAheadLib_mod32Message = GetAddress("mod32Message");
+	pfnAheadLib_mxd32Message = GetAddress("mxd32Message");
+	pfnAheadLib_tid32Message = GetAddress("tid32Message");
+	pfnAheadLib_wid32Message = GetAddress("wid32Message");
+	pfnAheadLib_wod32Message = GetAddress("wod32Message");
+	pfnAheadLib_mmDrvInstall = GetAddress("mmDrvInstall");
+	pfnAheadLib_mmGetCurrentTask = GetAddress("mmGetCurrentTask");
+	pfnAheadLib_mmTaskBlock = GetAddress("mmTaskBlock");
+	pfnAheadLib_mmTaskCreate = GetAddress("mmTaskCreate");
+	pfnAheadLib_mmTaskSignal = GetAddress("mmTaskSignal");
+	pfnAheadLib_mmTaskYield = GetAddress("mmTaskYield");
+#endif
+
 	pfnAheadLib_mciExecute = GetAddress("mciExecute");
 	pfnAheadLib_CloseDriver = GetAddress("CloseDriver");
 	pfnAheadLib_DefDriverProc = GetAddress("DefDriverProc");
 	pfnAheadLib_DriverCallback = GetAddress("DriverCallback");
 	pfnAheadLib_DrvGetModuleHandle = GetAddress("DrvGetModuleHandle");
 	pfnAheadLib_GetDriverModuleHandle = GetAddress("GetDriverModuleHandle");
-	pfnAheadLib_NotifyCallbackData = GetAddress("NotifyCallbackData");
 	pfnAheadLib_OpenDriver = GetAddress("OpenDriver");
 	pfnAheadLib_PlaySound = GetAddress("PlaySound");
 	pfnAheadLib_PlaySoundA = GetAddress("PlaySoundA");
 	pfnAheadLib_PlaySoundW = GetAddress("PlaySoundW");
 	pfnAheadLib_SendDriverMessage = GetAddress("SendDriverMessage");
-	pfnAheadLib_WOW32DriverCallback = GetAddress("WOW32DriverCallback");
-	pfnAheadLib_WOW32ResolveMultiMediaHandle = GetAddress("WOW32ResolveMultiMediaHandle");
-	pfnAheadLib_WOWAppExit = GetAddress("WOWAppExit");
-	pfnAheadLib_aux32Message = GetAddress("aux32Message");
 	pfnAheadLib_auxGetDevCapsA = GetAddress("auxGetDevCapsA");
 	pfnAheadLib_auxGetDevCapsW = GetAddress("auxGetDevCapsW");
 	pfnAheadLib_auxGetNumDevs = GetAddress("auxGetNumDevs");
 	pfnAheadLib_auxGetVolume = GetAddress("auxGetVolume");
 	pfnAheadLib_auxOutMessage = GetAddress("auxOutMessage");
 	pfnAheadLib_auxSetVolume = GetAddress("auxSetVolume");
-	pfnAheadLib_joy32Message = GetAddress("joy32Message");
 	pfnAheadLib_joyConfigChanged = GetAddress("joyConfigChanged");
 	pfnAheadLib_joyGetDevCapsA = GetAddress("joyGetDevCapsA");
 	pfnAheadLib_joyGetDevCapsW = GetAddress("joyGetDevCapsW");
@@ -459,7 +677,6 @@ BOOL WINAPI InitHijack()
 	pfnAheadLib_joyReleaseCapture = GetAddress("joyReleaseCapture");
 	pfnAheadLib_joySetCapture = GetAddress("joySetCapture");
 	pfnAheadLib_joySetThreshold = GetAddress("joySetThreshold");
-	pfnAheadLib_mci32Message = GetAddress("mci32Message");
 	pfnAheadLib_mciDriverNotify = GetAddress("mciDriverNotify");
 	pfnAheadLib_mciDriverYield = GetAddress("mciDriverYield");
 	pfnAheadLib_mciFreeCommandResource = GetAddress("mciFreeCommandResource");
@@ -479,7 +696,6 @@ BOOL WINAPI InitHijack()
 	pfnAheadLib_mciSendStringW = GetAddress("mciSendStringW");
 	pfnAheadLib_mciSetDriverData = GetAddress("mciSetDriverData");
 	pfnAheadLib_mciSetYieldProc = GetAddress("mciSetYieldProc");
-	pfnAheadLib_mid32Message = GetAddress("mid32Message");
 	pfnAheadLib_midiConnect = GetAddress("midiConnect");
 	pfnAheadLib_midiDisconnect = GetAddress("midiDisconnect");
 	pfnAheadLib_midiInAddBuffer = GetAddress("midiInAddBuffer");
@@ -537,12 +753,6 @@ BOOL WINAPI InitHijack()
 	pfnAheadLib_mixerMessage = GetAddress("mixerMessage");
 	pfnAheadLib_mixerOpen = GetAddress("mixerOpen");
 	pfnAheadLib_mixerSetControlDetails = GetAddress("mixerSetControlDetails");
-	pfnAheadLib_mmDrvInstall = GetAddress("mmDrvInstall");
-	pfnAheadLib_mmGetCurrentTask = GetAddress("mmGetCurrentTask");
-	pfnAheadLib_mmTaskBlock = GetAddress("mmTaskBlock");
-	pfnAheadLib_mmTaskCreate = GetAddress("mmTaskCreate");
-	pfnAheadLib_mmTaskSignal = GetAddress("mmTaskSignal");
-	pfnAheadLib_mmTaskYield = GetAddress("mmTaskYield");
 	pfnAheadLib_mmioAdvance = GetAddress("mmioAdvance");
 	pfnAheadLib_mmioAscend = GetAddress("mmioAscend");
 	pfnAheadLib_mmioClose = GetAddress("mmioClose");
@@ -565,11 +775,8 @@ BOOL WINAPI InitHijack()
 	pfnAheadLib_mmioStringToFOURCCW = GetAddress("mmioStringToFOURCCW");
 	pfnAheadLib_mmioWrite = GetAddress("mmioWrite");
 	pfnAheadLib_mmsystemGetVersion = GetAddress("mmsystemGetVersion");
-	pfnAheadLib_mod32Message = GetAddress("mod32Message");
-	pfnAheadLib_mxd32Message = GetAddress("mxd32Message");
 	pfnAheadLib_sndPlaySoundA = GetAddress("sndPlaySoundA");
 	pfnAheadLib_sndPlaySoundW = GetAddress("sndPlaySoundW");
-	pfnAheadLib_tid32Message = GetAddress("tid32Message");
 	pfnAheadLib_timeBeginPeriod = GetAddress("timeBeginPeriod");
 	pfnAheadLib_timeEndPeriod = GetAddress("timeEndPeriod");
 	pfnAheadLib_timeGetDevCaps = GetAddress("timeGetDevCaps");
@@ -616,10 +823,15 @@ BOOL WINAPI InitHijack()
 	pfnAheadLib_waveOutSetVolume = GetAddress("waveOutSetVolume");
 	pfnAheadLib_waveOutUnprepareHeader = GetAddress("waveOutUnprepareHeader");
 	pfnAheadLib_waveOutWrite = GetAddress("waveOutWrite");
-	pfnAheadLib_wid32Message = GetAddress("wid32Message");
-	pfnAheadLib_wod32Message = GetAddress("wod32Message");
 	return TRUE;
 }
+
+// ============================================================================
+// x86: naked asm trampolines (inline asm not available on x64)
+// x64: trampolines are in Proxy_x64.asm
+// ============================================================================
+
+#ifndef _WIN64
 
 EXTERN_C __declspec(naked) void __cdecl AheadLib_Unnamed2(void)
 {
@@ -1585,3 +1797,5 @@ EXTERN_C __declspec(naked) void __cdecl AheadLib_wod32Message(void)
 {
 	__asm jmp pfnAheadLib_wod32Message;
 }
+
+#endif // !_WIN64

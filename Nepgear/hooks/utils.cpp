@@ -404,7 +404,6 @@ namespace Utils {
                             Log("[Deploy] Copied %S from patch folder", fileName.c_str());
                         }
                     } else if (GetLastError() == ERROR_SHARING_VIOLATION) {
-                        // File might already be there and in use (e.g. another instance or system dll)
                         if (Config::EnableDebug) {
                             Log("[Deploy] Skipped %S (already in use)", fileName.c_str());
                         }
@@ -436,7 +435,7 @@ namespace Utils {
 
         std::vector<std::wstring> failedFiles;
 
-        // 1. Clean up explicitly deployed files
+
         for (const auto& filePath : g_deployedFiles) {
             if (DeleteFileW(filePath.c_str())) {
                 if (Config::EnableDebug) {
@@ -448,13 +447,13 @@ namespace Utils {
         }
         g_deployedFiles.clear();
 
-        // 2. Clean up LE files (fallback/extra check)
+
         const wchar_t* leFiles[] = { L"LoaderDll.dll", L"LocaleEmulator.dll" };
         for (const auto& fileName : leFiles) {
             wchar_t filePath[MAX_PATH];
             swprintf_s(filePath, MAX_PATH, L"%s\\%s", rootPath, fileName);
             if (!DeleteFileW(filePath) && GetLastError() != ERROR_FILE_NOT_FOUND) {
-                // Only add if not already in failed list
+
                 bool alreadyAdded = false;
                 for (const auto& f : failedFiles) {
                     if (_wcsicmp(f.c_str(), filePath) == 0) {
@@ -466,7 +465,7 @@ namespace Utils {
             }
         }
 
-        // 3. Use cmd.exe for delayed cleanup of files that are still in use
+
         if (!failedFiles.empty()) {
             std::wstring cmdLine = L"cmd.exe /c \"ping 127.0.0.1 -n 2 > nul";
             for (const auto& f : failedFiles) {

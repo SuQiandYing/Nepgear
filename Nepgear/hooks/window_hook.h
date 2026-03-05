@@ -2,4 +2,5 @@
 
 namespace Hooks {
     void InstallWindowHook();
+    void UninstallWindowHook();
 }

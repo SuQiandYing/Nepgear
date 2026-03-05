@@ -2,7 +2,9 @@
 #include <windows.h>
 
 namespace Config {
+
     extern bool    IsSystemEnabled;
+
 
     extern bool    EnableFontHook;
     extern wchar_t FontFileName[MAX_PATH];
@@ -18,15 +20,19 @@ namespace Config {
     extern bool    EnableFontWeight;
     extern int     FontWeight;
 
+
     extern bool    EnableWindowTitleHook;
+    extern int     WindowTitleMode;
     extern wchar_t CustomTitleW[256];
     extern char    CustomTitleA[256];
+
 
     extern bool    EnableFileHook;
     extern wchar_t RedirectFolderW[MAX_PATH];
     extern char    RedirectFolderA[MAX_PATH];
     extern wchar_t ArchiveFileName[MAX_PATH];
-    extern int     VFSMode; 
+    extern int     VFSMode;
+
 
     extern bool    EnableLE;
     extern UINT    LE_Codepage;
@@ -34,8 +40,21 @@ namespace Config {
     extern UINT    LE_LocaleID;
     extern wchar_t LE_Timezone[128];
 
+
+    extern bool    EnableCodepageSpoof;
+    extern DWORD   SpoofFromCharset;
+    extern DWORD   SpoofToCharset;
+    extern DWORD   DetectedCharset;
+    extern bool    NeedFontReload;
+    extern LONG    ConfigVersion;
+
+
     extern bool    EnableDebug;
     extern bool    EnableLogToFile;
+
+
+    extern wchar_t IniFileName[MAX_PATH];
+
 
     namespace AuthorInfo {
         const bool ShowPopup = true;
