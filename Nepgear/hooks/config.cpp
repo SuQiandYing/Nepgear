@@ -43,6 +43,11 @@ namespace Config {
     bool    EnableCodepageSpoof = false;
     DWORD   SpoofFromCharset = 128;
     DWORD   SpoofToCharset = 1;
+
+    bool    EnableCodePageHook = false;
+    UINT    FromCodePage = 0;
+    UINT    ToCodePage = 0;
+
     DWORD   DetectedCharset = 1;
     bool    NeedFontReload = false;
     LONG    ConfigVersion = 1;
@@ -130,6 +135,11 @@ namespace Config {
         LE_LocaleID = GetPrivateProfileIntW(L"LocaleEmulator", L"LocaleID", 1041, ini);
         LE_Charset  = GetPrivateProfileIntW(L"LocaleEmulator", L"Charset",  128,  ini);
         GetPrivateProfileStringW(L"LocaleEmulator", L"Timezone", L"Tokyo Standard Time", LE_Timezone, 128, ini);
+
+
+        EnableCodePageHook = GetPrivateProfileIntW(L"CodePage", L"Enable", 0, ini) != 0;
+        FromCodePage = GetPrivateProfileIntW(L"CodePage", L"FromCodePage", 0, ini);
+        ToCodePage = GetPrivateProfileIntW(L"CodePage", L"ToCodePage", 0, ini);
 
 
         EnableDebug    = GetPrivateProfileIntW(L"Debug", L"Enable",    0, ini) != 0;
