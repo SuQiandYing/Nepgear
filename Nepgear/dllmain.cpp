@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "Proxy.h"
 #include "hooks/config.h"
 #include "hooks/utils.h"
@@ -8,6 +8,7 @@
 #include "hooks/locale_emulator.h"
 #include "hooks/vfs.h"
 #include "hooks/crash_handler.h"
+#include "hooks/codepage_hook.h"
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
@@ -39,6 +40,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         Hooks::InstallFontHook();
         Utils::Log("[Core] Installing window hook...");
         Hooks::InstallWindowHook();
+        Utils::Log("[Core] Installing codepage hook...");
+        Hooks::InstallCodePageHook();
         Utils::Log("[Core] All hooks installed.");
     }
     else if (ul_reason_for_call == DLL_PROCESS_DETACH) {

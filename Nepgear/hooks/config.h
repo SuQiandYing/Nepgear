@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <windows.h>
 
 namespace Config {
@@ -44,6 +44,11 @@ namespace Config {
     extern bool    EnableCodepageSpoof;
     extern DWORD   SpoofFromCharset;
     extern DWORD   SpoofToCharset;
+
+    extern bool    EnableCodePageHook;
+    extern UINT    FromCodePage;
+    extern UINT    ToCodePage;
+
     extern DWORD   DetectedCharset;
     extern bool    NeedFontReload;
     extern LONG    ConfigVersion;
