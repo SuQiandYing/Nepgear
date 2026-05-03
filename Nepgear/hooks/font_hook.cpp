@@ -13,7 +13,7 @@
 #include "utils.h"
 #include "../detours.h"
 #include "vfs.h"
-#include "archive.h"
+
 #include <Shlwapi.h>
 #include <dwrite.h>
 
@@ -42,10 +42,6 @@ typedef int (WINAPI* pDrawTextA)(HDC, LPCSTR, int, LPRECT, UINT);
 typedef int (WINAPI* pDrawTextW)(HDC, LPCWSTR, int, LPRECT, UINT);
 typedef int (WINAPI* pDrawTextExA)(HDC, LPSTR, int, LPRECT, UINT, LPDRAWTEXTPARAMS);
 typedef int (WINAPI* pDrawTextExW)(HDC, LPWSTR, int, LPRECT, UINT, LPDRAWTEXTPARAMS);
-typedef BOOL(WINAPI* pPolyTextOutA)(HDC, const POLYTEXTA*, int);
-typedef BOOL(WINAPI* pPolyTextOutW)(HDC, const POLYTEXTW*, int);
-typedef LONG(WINAPI* pTabbedTextOutA)(HDC, int, int, LPCSTR, int, int, const int*, int);
-typedef LONG(WINAPI* pTabbedTextOutW)(HDC, int, int, LPCWSTR, int, int, const int*, int);
 
 static pTextOutA orgTextOutA = TextOutA;
 static pTextOutW orgTextOutW = TextOutW;
@@ -55,10 +51,6 @@ static pDrawTextA orgDrawTextA = DrawTextA;
 static pDrawTextW orgDrawTextW = DrawTextW;
 static pDrawTextExA orgDrawTextExA = DrawTextExA;
 static pDrawTextExW orgDrawTextExW = DrawTextExW;
-static pPolyTextOutA orgPolyTextOutA = PolyTextOutA;
-static pPolyTextOutW orgPolyTextOutW = PolyTextOutW;
-static pTabbedTextOutA orgTabbedTextOutA = TabbedTextOutA;
-static pTabbedTextOutW orgTabbedTextOutW = TabbedTextOutW;
 
 
 typedef HGDIOBJ(WINAPI* pSelectObject)(HDC, HGDIOBJ);
@@ -158,56 +150,14 @@ static pEnumFontFamiliesA orgEnumFontFamiliesA = EnumFontFamiliesA;
 static pEnumFontFamiliesW orgEnumFontFamiliesW = EnumFontFamiliesW;
 
 
-typedef BOOL(WINAPI* pGetCharWidthFloatA)(HDC, UINT, UINT, PFLOAT);
-typedef BOOL(WINAPI* pGetCharWidthFloatW)(HDC, UINT, UINT, PFLOAT);
-typedef BOOL(WINAPI* pGetCharWidthI)(HDC, UINT, UINT, LPWORD, LPINT);
-typedef BOOL(WINAPI* pGetCharABCWidthsI)(HDC, UINT, UINT, LPWORD, LPABC);
-typedef DWORD(WINAPI* pGetCharacterPlacementA)(HDC, LPCSTR, int, int, LPGCP_RESULTSA, DWORD);
-typedef DWORD(WINAPI* pGetCharacterPlacementW)(HDC, LPCWSTR, int, int, LPGCP_RESULTSW, DWORD);
-typedef DWORD(WINAPI* pGetKerningPairsA)(HDC, DWORD, LPKERNINGPAIR);
-typedef DWORD(WINAPI* pGetKerningPairsW)(HDC, DWORD, LPKERNINGPAIR);
-typedef DWORD(WINAPI* pGetGlyphIndicesA)(HDC, LPCSTR, int, LPWORD, DWORD);
-typedef DWORD(WINAPI* pGetGlyphIndicesW)(HDC, LPCWSTR, int, LPWORD, DWORD);
-static pGetCharWidthFloatA orgGetCharWidthFloatA = GetCharWidthFloatA;
-static pGetCharWidthFloatW orgGetCharWidthFloatW = GetCharWidthFloatW;
-static pGetCharWidthI orgGetCharWidthI = GetCharWidthI;
-static pGetCharABCWidthsI orgGetCharABCWidthsI = GetCharABCWidthsI;
-static pGetCharacterPlacementA orgGetCharacterPlacementA = GetCharacterPlacementA;
-static pGetCharacterPlacementW orgGetCharacterPlacementW = GetCharacterPlacementW;
-static pGetKerningPairsA orgGetKerningPairsA = GetKerningPairsA;
-static pGetKerningPairsW orgGetKerningPairsW = GetKerningPairsW;
-static pGetGlyphIndicesA orgGetGlyphIndicesA = GetGlyphIndicesA;
-static pGetGlyphIndicesW orgGetGlyphIndicesW = GetGlyphIndicesW;
 
 
-typedef UINT(WINAPI* pGetOutlineTextMetricsA)(HDC, UINT, LPOUTLINETEXTMETRICA);
-typedef UINT(WINAPI* pGetOutlineTextMetricsW)(HDC, UINT, LPOUTLINETEXTMETRICW);
 typedef BOOL(WINAPI* pGetTextExtentPointA)(HDC, LPCSTR, int, LPSIZE);
 typedef BOOL(WINAPI* pGetTextExtentPointW)(HDC, LPCWSTR, int, LPSIZE);
-typedef BOOL(WINAPI* pGetTextExtentPointI)(HDC, LPWORD, int, LPSIZE);
-typedef BOOL(WINAPI* pGetTextExtentExPointI)(HDC, LPWORD, int, int, LPINT, LPINT, LPSIZE);
-typedef DWORD(WINAPI* pGetFontData)(HDC, DWORD, DWORD, PVOID, DWORD);
-typedef DWORD(WINAPI* pGetFontLanguageInfo)(HDC);
-typedef DWORD(WINAPI* pGetFontUnicodeRanges)(HDC, LPGLYPHSET);
-static pGetOutlineTextMetricsA orgGetOutlineTextMetricsA = GetOutlineTextMetricsA;
-static pGetOutlineTextMetricsW orgGetOutlineTextMetricsW = GetOutlineTextMetricsW;
 static pGetTextExtentPointA orgGetTextExtentPointA = GetTextExtentPointA;
 static pGetTextExtentPointW orgGetTextExtentPointW = GetTextExtentPointW;
-static pGetTextExtentPointI orgGetTextExtentPointI = GetTextExtentPointI;
-static pGetTextExtentExPointI orgGetTextExtentExPointI = GetTextExtentExPointI;
-static pGetFontData orgGetFontData = GetFontData;
-static pGetFontLanguageInfo orgGetFontLanguageInfo = GetFontLanguageInfo;
-static pGetFontUnicodeRanges orgGetFontUnicodeRanges = GetFontUnicodeRanges;
 
 
-typedef BOOL(WINAPI* pGrayStringA)(HDC, HBRUSH, GRAYSTRINGPROC, LPARAM, int, int, int, int, int);
-typedef BOOL(WINAPI* pGrayStringW)(HDC, HBRUSH, GRAYSTRINGPROC, LPARAM, int, int, int, int, int);
-typedef DWORD(WINAPI* pGetTabbedTextExtentA)(HDC, LPCSTR, int, int, const int*);
-typedef DWORD(WINAPI* pGetTabbedTextExtentW)(HDC, LPCWSTR, int, int, const int*);
-static pGrayStringA orgGrayStringA = GrayStringA;
-static pGrayStringW orgGrayStringW = GrayStringW;
-static pGetTabbedTextExtentA orgGetTabbedTextExtentA = GetTabbedTextExtentA;
-static pGetTabbedTextExtentW orgGetTabbedTextExtentW = GetTabbedTextExtentW;
 
 
 typedef HMODULE(WINAPI* pLoadLibraryW)(LPCWSTR);
@@ -412,11 +362,6 @@ static bool FindFontFilePath() {
     GetModuleFileNameW(g_hModule, rootDir, MAX_PATH);
     PathRemoveFileSpecW(rootDir);
     if (Config::EnableFileHook) {
-        const wchar_t* tempRoot = Archive::GetTempRootW();
-        if (tempRoot) {
-            swprintf_s(g_FontFilePath, MAX_PATH, L"%s\\%s", tempRoot, Config::FontFileName);
-            if (PathFileExistsW(g_FontFilePath)) return true;
-        }
         swprintf_s(g_FontFilePath, MAX_PATH, L"%s\\%s\\%s",
             rootDir, Config::RedirectFolderW, Config::FontFileName);
         if (PathFileExistsW(g_FontFilePath)) return true;
@@ -571,30 +516,6 @@ int WINAPI newDrawTextExW(HDC hdc, LPWSTR lpchText, int nCount, LPRECT lpRect, U
     LogGdiFont(hdc, L"DrawTextExW", _ReturnAddress());
     HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
     int ret = orgDrawTextExW(hdc, lpchText, nCount, lpRect, format, lpdtp);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); }
-    return ret;
-}
-BOOL WINAPI newPolyTextOutA(HDC hdc, const POLYTEXTA* ppt, int nTexts) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgPolyTextOutA(hdc, ppt, nTexts);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); }
-    return ret;
-}
-BOOL WINAPI newPolyTextOutW(HDC hdc, const POLYTEXTW* ppt, int nTexts) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgPolyTextOutW(hdc, ppt, nTexts);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); }
-    return ret;
-}
-LONG WINAPI newTabbedTextOutA(HDC hdc, int x, int y, LPCSTR lpString, int nCount, int nTabPositions, const int* lpnTabPositions, int nTabOrigin) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    LONG ret = orgTabbedTextOutA(hdc, x, y, lpString, nCount, nTabPositions, lpnTabPositions, nTabOrigin);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); }
-    return ret;
-}
-LONG WINAPI newTabbedTextOutW(HDC hdc, int x, int y, LPCWSTR lpString, int nCount, int nTabPositions, const int* lpnTabPositions, int nTabOrigin) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    LONG ret = orgTabbedTextOutW(hdc, x, y, lpString, nCount, nTabPositions, lpnTabPositions, nTabOrigin);
     if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); }
     return ret;
 }
@@ -939,68 +860,8 @@ int WINAPI newEnumFontFamiliesW(HDC hdc, LPCWSTR lpFaceName, FONTENUMPROCW lpPro
 }
 
 
-BOOL  WINAPI newGetCharWidthFloatA(HDC hdc, UINT iFirst, UINT iLast, PFLOAT lpBuffer) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGetCharWidthFloatA(hdc, iFirst, iLast, lpBuffer);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-BOOL  WINAPI newGetCharWidthFloatW(HDC hdc, UINT iFirst, UINT iLast, PFLOAT lpBuffer) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGetCharWidthFloatW(hdc, iFirst, iLast, lpBuffer);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-BOOL  WINAPI newGetCharWidthI(HDC hdc, UINT giFirst, UINT cgi, LPWORD pgi, LPINT piWidths) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGetCharWidthI(hdc, giFirst, cgi, pgi, piWidths);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-BOOL  WINAPI newGetCharABCWidthsI(HDC hdc, UINT giFirst, UINT cgi, LPWORD pgi, LPABC lpabc) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGetCharABCWidthsI(hdc, giFirst, cgi, pgi, lpabc);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetCharacterPlacementA(HDC hdc, LPCSTR lpString, int nCount, int nMexExtent, LPGCP_RESULTSA lpResults, DWORD dwFlags) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetCharacterPlacementA(hdc, lpString, nCount, nMexExtent, lpResults, dwFlags);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetCharacterPlacementW(HDC hdc, LPCWSTR lpString, int nCount, int nMexExtent, LPGCP_RESULTSW lpResults, DWORD dwFlags) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetCharacterPlacementW(hdc, lpString, nCount, nMexExtent, lpResults, dwFlags);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetKerningPairsA(HDC hdc, DWORD nPairs, LPKERNINGPAIR lpKernPair) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetKerningPairsA(hdc, nPairs, lpKernPair);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetKerningPairsW(HDC hdc, DWORD nPairs, LPKERNINGPAIR lpKernPair) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetKerningPairsW(hdc, nPairs, lpKernPair);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetGlyphIndicesA(HDC hdc, LPCSTR lpstr, int c, LPWORD pgi, DWORD fl) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetGlyphIndicesA(hdc, lpstr, c, pgi, fl);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetGlyphIndicesW(HDC hdc, LPCWSTR lpstr, int c, LPWORD pgi, DWORD fl) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetGlyphIndicesW(hdc, lpstr, c, pgi, fl);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
 
 
-UINT  WINAPI newGetOutlineTextMetricsA(HDC hdc, UINT cbData, LPOUTLINETEXTMETRICA lpOTM) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    UINT ret = orgGetOutlineTextMetricsA(hdc, cbData, lpOTM);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-UINT  WINAPI newGetOutlineTextMetricsW(HDC hdc, UINT cbData, LPOUTLINETEXTMETRICW lpOTM) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    UINT ret = orgGetOutlineTextMetricsW(hdc, cbData, lpOTM);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
 BOOL  WINAPI newGetTextExtentPointA(HDC hdc, LPCSTR lpString, int c, LPSIZE lpsz) {
     HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
     BOOL ret = orgGetTextExtentPointA(hdc, lpString, c, lpsz);
@@ -1011,53 +872,8 @@ BOOL  WINAPI newGetTextExtentPointW(HDC hdc, LPCWSTR lpString, int c, LPSIZE lps
     BOOL ret = orgGetTextExtentPointW(hdc, lpString, c, lpsz);
     if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
 }
-BOOL  WINAPI newGetTextExtentPointI(HDC hdc, LPWORD pgiIn, int cgi, LPSIZE pSize) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGetTextExtentPointI(hdc, pgiIn, cgi, pSize);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-BOOL  WINAPI newGetTextExtentExPointI(HDC hdc, LPWORD lpwszString, int cwchString, int nMaxExtent, LPINT lpnFit, LPINT lpnDx, LPSIZE lpSize) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGetTextExtentExPointI(hdc, lpwszString, cwchString, nMaxExtent, lpnFit, lpnDx, lpSize);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetFontData(HDC hdc, DWORD dwTable, DWORD dwOffset, PVOID pvBuffer, DWORD cjBuffer) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetFontData(hdc, dwTable, dwOffset, pvBuffer, cjBuffer);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetFontLanguageInfo(HDC hdc) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetFontLanguageInfo(hdc);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetFontUnicodeRanges(HDC hdc, LPGLYPHSET lpgs) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetFontUnicodeRanges(hdc, lpgs);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
 
 
-BOOL  WINAPI newGrayStringA(HDC hdc, HBRUSH hBrush, GRAYSTRINGPROC lpOutputFunc, LPARAM lpData, int nCount, int X, int Y, int nWidth, int nHeight) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGrayStringA(hdc, hBrush, lpOutputFunc, lpData, nCount, X, Y, nWidth, nHeight);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-BOOL  WINAPI newGrayStringW(HDC hdc, HBRUSH hBrush, GRAYSTRINGPROC lpOutputFunc, LPARAM lpData, int nCount, int X, int Y, int nWidth, int nHeight) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    BOOL ret = orgGrayStringW(hdc, hBrush, lpOutputFunc, lpData, nCount, X, Y, nWidth, nHeight);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetTabbedTextExtentA(HDC hdc, LPCSTR lpString, int chCount, int nTabPositions, const int* lpnTabStopPositions) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetTabbedTextExtentA(hdc, lpString, chCount, nTabPositions, lpnTabStopPositions);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
-DWORD WINAPI newGetTabbedTextExtentW(HDC hdc, LPCWSTR lpString, int chCount, int nTabPositions, const int* lpnTabStopPositions) {
-    HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
-    DWORD ret = orgGetTabbedTextExtentW(hdc, lpString, chCount, nTabPositions, lpnTabStopPositions);
-    if (hNew) { orgSelectObject(hdc, hOld); DeleteObject(hNew); } return ret;
-}
 
 
 GpStatus WINAPI newGdipMeasureString(GpGraphics* graphics, const WCHAR* string, INT length, const GpFont* font, const RectF* layoutRect, const GpStringFormat* stringFormat, RectF* boundingBox, INT* codepointsFitted, INT* linesFilled) {
@@ -1360,10 +1176,6 @@ namespace Hooks {
         DetourAttach(&(PVOID&)orgDrawTextW,     newDrawTextW);
         DetourAttach(&(PVOID&)orgDrawTextExA,   newDrawTextExA);
         DetourAttach(&(PVOID&)orgDrawTextExW,   newDrawTextExW);
-        DetourAttach(&(PVOID&)orgPolyTextOutA,  newPolyTextOutA);
-        DetourAttach(&(PVOID&)orgPolyTextOutW,  newPolyTextOutW);
-        DetourAttach(&(PVOID&)orgTabbedTextOutA, newTabbedTextOutA);
-        DetourAttach(&(PVOID&)orgTabbedTextOutW, newTabbedTextOutW);
 
 
         DetourAttach(&(PVOID&)orgSelectObject, newSelectObject);
@@ -1423,35 +1235,8 @@ namespace Hooks {
         DetourAttach(&(PVOID&)orgEnumFontsW,         newEnumFontsW);
         DetourAttach(&(PVOID&)orgEnumFontFamiliesA,  newEnumFontFamiliesA);
         DetourAttach(&(PVOID&)orgEnumFontFamiliesW,  newEnumFontFamiliesW);
-
-
-        DetourAttach(&(PVOID&)orgGetCharWidthFloatA,       newGetCharWidthFloatA);
-        DetourAttach(&(PVOID&)orgGetCharWidthFloatW,       newGetCharWidthFloatW);
-        DetourAttach(&(PVOID&)orgGetCharWidthI,            newGetCharWidthI);
-        DetourAttach(&(PVOID&)orgGetCharABCWidthsI,        newGetCharABCWidthsI);
-        DetourAttach(&(PVOID&)orgGetCharacterPlacementA,   newGetCharacterPlacementA);
-        DetourAttach(&(PVOID&)orgGetCharacterPlacementW,   newGetCharacterPlacementW);
-        DetourAttach(&(PVOID&)orgGetKerningPairsA,         newGetKerningPairsA);
-        DetourAttach(&(PVOID&)orgGetKerningPairsW,         newGetKerningPairsW);
-        DetourAttach(&(PVOID&)orgGetGlyphIndicesA,         newGetGlyphIndicesA);
-        DetourAttach(&(PVOID&)orgGetGlyphIndicesW,         newGetGlyphIndicesW);
-
-
-        DetourAttach(&(PVOID&)orgGetOutlineTextMetricsA, newGetOutlineTextMetricsA);
-        DetourAttach(&(PVOID&)orgGetOutlineTextMetricsW, newGetOutlineTextMetricsW);
         DetourAttach(&(PVOID&)orgGetTextExtentPointA,    newGetTextExtentPointA);
         DetourAttach(&(PVOID&)orgGetTextExtentPointW,    newGetTextExtentPointW);
-        DetourAttach(&(PVOID&)orgGetTextExtentPointI,    newGetTextExtentPointI);
-        DetourAttach(&(PVOID&)orgGetTextExtentExPointI,  newGetTextExtentExPointI);
-        DetourAttach(&(PVOID&)orgGetFontData,            newGetFontData);
-        DetourAttach(&(PVOID&)orgGetFontLanguageInfo,    newGetFontLanguageInfo);
-        DetourAttach(&(PVOID&)orgGetFontUnicodeRanges,   newGetFontUnicodeRanges);
-
-
-        DetourAttach(&(PVOID&)orgGrayStringA,          newGrayStringA);
-        DetourAttach(&(PVOID&)orgGrayStringW,          newGrayStringW);
-        DetourAttach(&(PVOID&)orgGetTabbedTextExtentA, newGetTabbedTextExtentA);
-        DetourAttach(&(PVOID&)orgGetTabbedTextExtentW, newGetTabbedTextExtentW);
 
 
         HMODULE hDWrite = GetModuleHandleW(L"dwrite.dll");

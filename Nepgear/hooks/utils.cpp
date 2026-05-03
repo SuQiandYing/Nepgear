@@ -8,13 +8,15 @@
 #include <vector>
 #include <stdio.h>
 #include <stdarg.h>
-#include "archive.h"
+#include <mutex>
 
 #pragma comment(lib, "Shlwapi.lib")
 
 #include <set>
 
 static std::vector<std::wstring> g_deployedFiles;
+static HANDLE g_LogFileHandle = INVALID_HANDLE_VALUE;
+static std::mutex g_LogMutex;
 
 static void DebugPrintW(const wchar_t* format, ...) {
     wchar_t wbuf[2048];
@@ -40,18 +42,9 @@ namespace Utils {
         WCHAR fontPath[MAX_PATH] = { 0 };
 
         if (Config::EnableFileHook) {
-            const wchar_t* tempRoot = Archive::GetTempRootW();
-            if (tempRoot) {
-                swprintf_s(fontPath, MAX_PATH, L"%s\\%s", tempRoot, Config::FontFileName);
-                if (!PathFileExistsW(fontPath)) {
-                    fontPath[0] = 0;
-                }
-            }
-            if (fontPath[0] == 0) {
-                swprintf_s(fontPath, MAX_PATH, L"%s\\%s\\%s", rootDir, Config::RedirectFolderW, Config::FontFileName);
-                if (!PathFileExistsW(fontPath)) {
-                    fontPath[0] = 0;
-                }
+            swprintf_s(fontPath, MAX_PATH, L"%s\\%s\\%s", rootDir, Config::RedirectFolderW, Config::FontFileName);
+            if (!PathFileExistsW(fontPath)) {
+                fontPath[0] = 0;
             }
         }
 
@@ -164,19 +157,17 @@ namespace Utils {
 
     void ShowStartupPopup() {
         if (!Config::IsSystemEnabled) return;
-        if (!Config::AuthorInfo::ShowPopup) return;
 
-        std::wstring msg;
-        msg += L"【补丁作者】\n";
-        for (int i = 0; i < Config::AuthorInfo::AUTHOR_IDS_COUNT; ++i) {
-            msg += L" - ";
-            msg += Config::AuthorInfo::AUTHOR_IDS[i];
-            msg += L"\n";
-        }
-        msg += L"\n【补丁声明】\n";
-        msg += Config::AuthorInfo::ADDITIONAL_NOTES;
+        const wchar_t* const popupTitle = L"游玩通知";
+        const wchar_t* const popupMessage = 
+            L"【补丁作者】\n"
+            L" - 是幼微鸭mua@ai2.moe (御爱同萌)\n"
+            L" - 是幼微鸭mua@moyu.moe (鲲补丁站)\n\n"
+            L"【补丁声明】\n"
+            L"本补丁完全免费发布,严禁倒卖和移植至手机端；\n"
+            L"未经许可，禁止制作成整合包以及转载搬运至其他网站。";
 
-        int result = MessageBoxW(NULL, msg.c_str(), L"游玩通知", MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST);
+        int result = MessageBoxW(NULL, popupMessage, popupTitle, MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST);
         if (result == IDNO) {
             CleanupPatchFiles();
             ExitProcess(0);
@@ -184,6 +175,8 @@ namespace Utils {
     }
 
     static void LogInternal(LogLevel level, const wchar_t* message) {
+        std::lock_guard<std::mutex> lock(g_LogMutex);
+
         SYSTEMTIME st;
         GetLocalTime(&st);
         wchar_t timeBuf[64];
@@ -202,6 +195,7 @@ namespace Utils {
         }
 
         std::wstring logLine;
+        logLine.reserve(512);
         if (level == LOG_ERROR) {
             logLine += L"============================================================\n";
         }
@@ -217,42 +211,35 @@ namespace Utils {
 
         OutputDebugStringW(logLine.c_str());
 
-        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, logLine.c_str(), -1, NULL, 0, NULL, NULL);
-        if (utf8Len > 0) {
-            std::vector<char> utf8Buf(utf8Len);
-            WideCharToMultiByte(CP_UTF8, 0, logLine.c_str(), -1, utf8Buf.data(), utf8Len, NULL, NULL);
-            std::string utf8Str(utf8Buf.data());
+        if (Config::EnableLogToFile || Config::EnableDebug) {
+            char utf8Buf[4096];
+            int utf8Len = WideCharToMultiByte(CP_UTF8, 0, logLine.c_str(), (int)logLine.length(), utf8Buf, sizeof(utf8Buf) - 1, NULL, NULL);
+            if (utf8Len > 0) {
+                utf8Buf[utf8Len] = '\0';
 
-            if (Config::EnableLogToFile) {
-                static wchar_t logPath[MAX_PATH] = { 0 };
-                static bool logRecreated = false;
-
-                if (logPath[0] == 0) {
-                    GetModuleFileNameW(NULL, logPath, MAX_PATH);
-                    PathRemoveFileSpecW(logPath);
-                    PathAppendW(logPath, L"Nepgear.log");
+                if (Config::EnableLogToFile) {
+                    if (g_LogFileHandle == INVALID_HANDLE_VALUE) {
+                        wchar_t logPath[MAX_PATH];
+                        GetModuleFileNameW(NULL, logPath, MAX_PATH);
+                        PathRemoveFileSpecW(logPath);
+                        PathAppendW(logPath, L"Nepgear.log");
+                        g_LogFileHandle = CreateFileW(logPath, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+                    }
+                    if (g_LogFileHandle != INVALID_HANDLE_VALUE) {
+                        DWORD bytesWritten;
+                        WriteFile(g_LogFileHandle, utf8Buf, utf8Len, &bytesWritten, NULL);
+                        FlushFileBuffers(g_LogFileHandle);
+                    }
                 }
 
-                DWORD dwCreationDisposition = OPEN_ALWAYS;
-                if (!logRecreated) {
-                    dwCreationDisposition = CREATE_ALWAYS;
-                    logRecreated = true;
-                }
-
-                HANDLE hFile = CreateFileW(logPath, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, NULL);
-                if (hFile != INVALID_HANDLE_VALUE) {
-                    DWORD bytesWritten;
-                    WriteFile(hFile, utf8Str.c_str(), (DWORD)utf8Str.length(), &bytesWritten, NULL);
-                    CloseHandle(hFile);
-                }
-            }
-
-            if (Config::EnableDebug) {
-                HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-                if (hConsole != INVALID_HANDLE_VALUE) {
-                    SetConsoleTextAttribute(hConsole, consoleAttr);
-                    printf("%s", utf8Str.c_str());
-                    SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+                if (Config::EnableDebug) {
+                    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+                    if (hConsole != INVALID_HANDLE_VALUE && hConsole != NULL) {
+                        SetConsoleTextAttribute(hConsole, consoleAttr);
+                        DWORD bw;
+                        WriteConsoleA(hConsole, utf8Buf, utf8Len, &bw, NULL);
+                        SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+                    }
                 }
             }
         }
@@ -262,14 +249,15 @@ namespace Utils {
         char buffer[2048];
         va_list args;
         va_start(args, format);
-        vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
+        int len = vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
         va_end(args);
+        if (len <= 0) return;
 
-        int wLen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, NULL, 0);
+        wchar_t wBuf[2048];
+        int wLen = MultiByteToWideChar(CP_ACP, 0, buffer, len, wBuf, _countof(wBuf) - 1);
         if (wLen > 0) {
-            std::vector<wchar_t> wBuf(wLen);
-            MultiByteToWideChar(CP_ACP, 0, buffer, -1, wBuf.data(), wLen);
-            LogInternal(LOG_INFO, wBuf.data());
+            wBuf[wLen] = L'\0';
+            LogInternal(LOG_INFO, wBuf);
         }
     }
 
@@ -277,14 +265,15 @@ namespace Utils {
         char buffer[2048];
         va_list args;
         va_start(args, format);
-        vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
+        int len = vsnprintf_s(buffer, _countof(buffer), _TRUNCATE, format, args);
         va_end(args);
+        if (len <= 0) return;
 
-        int wLen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, NULL, 0);
+        wchar_t wBuf[2048];
+        int wLen = MultiByteToWideChar(CP_ACP, 0, buffer, len, wBuf, _countof(wBuf) - 1);
         if (wLen > 0) {
-            std::vector<wchar_t> wBuf(wLen);
-            MultiByteToWideChar(CP_ACP, 0, buffer, -1, wBuf.data(), wLen);
-            LogInternal(level, wBuf.data());
+            wBuf[wLen] = L'\0';
+            LogInternal(level, wBuf);
         }
     }
 
@@ -352,15 +341,9 @@ namespace Utils {
         }
 
         wchar_t patchPath[MAX_PATH];
-        const wchar_t* tempRoot = Archive::GetTempRootW();
-        if (tempRoot) {
-            wcscpy_s(patchPath, MAX_PATH, tempRoot);
-        }
-        else {
-            GetModuleFileNameW(hModule, patchPath, MAX_PATH);
-            PathRemoveFileSpecW(patchPath);
-            PathAppendW(patchPath, Config::RedirectFolderW);
-        }
+        GetModuleFileNameW(hModule, patchPath, MAX_PATH);
+        PathRemoveFileSpecW(patchPath);
+        PathAppendW(patchPath, Config::RedirectFolderW);
 
         if (PathFileExistsW(patchPath)) {
             wchar_t searchPath[MAX_PATH];
@@ -491,5 +474,84 @@ namespace Utils {
                 Log(LOG_ERROR, "[Deploy] Failed to launch cmd.exe for cleanup (Error: %lu)", GetLastError());
             }
         }
+
+        if (g_LogFileHandle != INVALID_HANDLE_VALUE) {
+            CloseHandle(g_LogFileHandle);
+            g_LogFileHandle = INVALID_HANDLE_VALUE;
+        }
+    }
+
+    PVOID FindPattern(HMODULE hModule, const char* signature) {
+        if (!hModule || !signature) return nullptr;
+
+        PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hModule;
+        PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((BYTE*)hModule + dosHeader->e_lfanew);
+        DWORD size = ntHeaders->OptionalHeader.SizeOfImage;
+        BYTE* scanBytes = (BYTE*)hModule;
+
+        std::vector<int> pattern;
+        const char* p = signature;
+        while (*p) {
+            if (*p == ' ') { p++; continue; }
+            if (*p == '?') {
+                pattern.push_back(-1);
+                p++;
+                if (*p == '?') p++;
+            } else {
+                char* end;
+                pattern.push_back((int)strtol(p, &end, 16));
+                p = end;
+            }
+        }
+
+        if (pattern.empty()) return nullptr;
+
+        size_t patternSize = pattern.size();
+        for (DWORD i = 0; i < size - patternSize; i++) {
+            bool found = true;
+            for (size_t j = 0; j < patternSize; j++) {
+                if (pattern[j] != -1 && scanBytes[i + j] != (BYTE)pattern[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return &scanBytes[i];
+        }
+        return nullptr;
+    }
+
+    PVOID FindPatternInBlock(void* startAddress, size_t size, const char* signature) {
+        if (!startAddress || !signature || size == 0) return nullptr;
+
+        BYTE* scanBytes = (BYTE*)startAddress;
+        std::vector<int> pattern;
+        const char* p = signature;
+        while (*p) {
+            if (*p == ' ') { p++; continue; }
+            if (*p == '?') {
+                pattern.push_back(-1);
+                p++;
+                if (*p == '?') p++;
+            } else {
+                char* end;
+                pattern.push_back((int)strtol(p, &end, 16));
+                p = end;
+            }
+        }
+
+        if (pattern.empty()) return nullptr;
+
+        size_t patternSize = pattern.size();
+        for (size_t i = 0; i < size - patternSize; i++) {
+            bool found = true;
+            for (size_t j = 0; j < patternSize; j++) {
+                if (pattern[j] != -1 && scanBytes[i + j] != (BYTE)pattern[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return &scanBytes[i];
+        }
+        return nullptr;
     }
 }

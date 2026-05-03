@@ -9,6 +9,8 @@
 #include "hooks/vfs.h"
 #include "hooks/crash_handler.h"
 #include "hooks/codepage_hook.h"
+#include "hooks/krkrz_hook.h"
+#include "hooks/rioshiina_hook.h"
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
@@ -31,8 +33,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
             }
         }
 
-        Utils::Log("[Core] About to show popup...");
         Utils::ShowStartupPopup();
+
         Utils::Log("[Core] Installing file hook...");
         Hooks::InstallFileHook();
         Utils::Log("[Core] Installing font hook...");
@@ -42,6 +44,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         Hooks::InstallWindowHook();
         Utils::Log("[Core] Installing codepage hook...");
         Hooks::InstallCodePageHook();
+        Utils::Log("[Core] Installing Krkrz hook...");
+        Hooks::InstallKrkrzHook();
+        Utils::Log("[Core] Installing RioShiina hook...");
+        Hooks::InstallRioShiinaHook();
         Utils::Log("[Core] All hooks installed.");
     }
     else if (ul_reason_for_call == DLL_PROCESS_DETACH) {

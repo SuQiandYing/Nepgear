@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <windows.h>
 
 namespace Utils {
@@ -17,4 +17,6 @@ namespace Utils {
     void InitConsole();
     BOOL DeployPatchFiles(HMODULE hModule);
     void CleanupPatchFiles();
+    PVOID FindPattern(HMODULE hModule, const char* signature);
+    PVOID FindPatternInBlock(void* startAddress, size_t size, const char* signature);
 }

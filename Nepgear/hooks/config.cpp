@@ -29,10 +29,20 @@ namespace Config {
     char    CustomTitleA[256] = { 0 };
 
     bool    EnableFileHook = false;
+    bool    EnableKrkrzHook = false;
+    bool    EnableRioShiinaHook = false;
+    bool    EnableRioShiinaProcessReg = true;
+    bool    EnableRioShiinaProcessDvd = false;
+    UINT64  RioShiinaSpecDvdFileSize = 0;
     wchar_t RedirectFolderW[MAX_PATH] = L"Nepgear";
+    wchar_t KrkrzPatchFolder[MAX_PATH] = L"patch";
+    wchar_t KrkrzPatchFile[MAX_PATH] = L"patch.xp3";
     char    RedirectFolderA[MAX_PATH] = "Nepgear";
     wchar_t ArchiveFileName[MAX_PATH] = L"Nepgear.chs";
     int     VFSMode = 0;
+    int     RioShiinaMode = 1;
+    wchar_t RioShiinaArchivesToExtract[1024] = { 0 };
+    bool    RioShiinaSkipInvalidFileName = true;
 
     bool    EnableLE = false;
     UINT    LE_Codepage = 932;
@@ -54,6 +64,10 @@ namespace Config {
 
     bool    EnableDebug = false;
     bool    EnableLogToFile = false;
+
+    bool    EnableMedFix = false;
+    bool    EnableMajiroFix = false;
+
     wchar_t IniFileName[MAX_PATH] = L"Nepgear.ini";
 
 
@@ -126,8 +140,22 @@ namespace Config {
         WCharToChar(RedirectFolderW, RedirectFolderA, MAX_PATH);
         GetPrivateProfileStringW(L"FileRedirect", L"ArchiveFile", L"Nepgear.chs", ArchiveFileName, MAX_PATH, ini);
 
-
         VFSMode = GetPrivateProfileIntW(L"FileHook", L"VFSMode", 0, ini);
+
+        EnableKrkrzHook = GetPrivateProfileIntW(L"GLOBAL", L"EnableKrkrz", 0, ini) != 0;
+        GetPrivateProfileStringW(L"GLOBAL", L"KrkrzPatchFile", L"patch.xp3", KrkrzPatchFile, MAX_PATH, ini);
+        
+        EnableRioShiinaHook = GetPrivateProfileIntW(L"GLOBAL", L"EnableRioShiina", 0, ini) != 0;
+        RioShiinaMode = GetPrivateProfileIntW(L"GLOBAL", L"RioShiinaMode", 1, ini);
+        EnableRioShiinaProcessReg = GetPrivateProfileIntW(L"GLOBAL", L"RioShiinaProcessReg", 1, ini) != 0;
+        EnableRioShiinaProcessDvd = GetPrivateProfileIntW(L"GLOBAL", L"RioShiinaProcessDvd", 0, ini) != 0;
+        {
+            wchar_t dvdSizeBuf[64] = {0};
+            GetPrivateProfileStringW(L"GLOBAL", L"RioShiinaSpecDvdFileSize", L"0", dvdSizeBuf, 64, ini);
+            RioShiinaSpecDvdFileSize = _wcstoui64(dvdSizeBuf, nullptr, 10);
+        }
+        GetPrivateProfileStringW(L"GLOBAL", L"RioShiinaArchivesToExtract", L"", RioShiinaArchivesToExtract, 1024, ini);
+        RioShiinaSkipInvalidFileName = GetPrivateProfileIntW(L"GLOBAL", L"RioShiinaSkipInvalidFileName", 1, ini) != 0;
 
 
         EnableLE    = GetPrivateProfileIntW(L"LocaleEmulator", L"Enable",   0,    ini) != 0;
@@ -144,10 +172,14 @@ namespace Config {
 
         EnableDebug    = GetPrivateProfileIntW(L"Debug", L"Enable",    0, ini) != 0;
         EnableLogToFile = GetPrivateProfileIntW(L"Debug", L"LogToFile", 0, ini) != 0;
+        
 
         if (EnableDebug) {
             Utils::Log("[Config] Configuration loaded from: %ls", ini);
             Utils::Log("[Config] Window Title Mode: %d, Custom Title: %ls", WindowTitleMode, CustomTitleW);
         }
+
+        EnableMedFix = GetPrivateProfileIntW(L"GLOBAL", L"MED", 0, ini) != 0;
+        EnableMajiroFix = GetPrivateProfileIntW(L"GLOBAL", L"MAJIRO", 0, ini) != 0;
     }
 }

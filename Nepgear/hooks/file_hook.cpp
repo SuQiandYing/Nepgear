@@ -3,11 +3,14 @@
 #include <stdio.h>
 #include <shlwapi.h>
 #include <string>
+#include <filesystem>
+namespace fs = std::filesystem;
 #include "file_hook.h"
 #include "config.h"
 #include "utils.h"
 #include "../detours.h"
 #include "vfs.h"
+#include "rioshiina_hook.h"
 
 #ifdef _WIN64
 #pragma comment(lib, "detours_x64.lib")
@@ -403,6 +406,23 @@ namespace Hooks {
         DetourTransactionCommit();
         VFS::SetOriginalFunctions((void*)orgReadFile, (void*)orgSetFilePointerEx, (void*)orgCloseHandle);
         VFS::SetFindFunctions((void*)orgFindFirstFileW, (void*)orgFindNextFileW, (void*)orgFindClose, (void*)orgFindFirstFileA, (void*)orgFindNextFileA);
+
+        // Pre-startup cache cleanup
+        if (Config::EnableMedFix) {
+            fs::path medCache = fs::path(g_GameRootW) / L"med_font.cache";
+            if (fs::exists(medCache)) {
+                fs::remove(medCache);
+                Utils::Log("[Fix] MED font cache cleared.");
+            }
+        }
+        if (Config::EnableMajiroFix) {
+            fs::path majiroCache = fs::path(g_GameRootW) / L"m_font.dat";
+            if (fs::exists(majiroCache)) {
+                fs::remove(majiroCache);
+                Utils::Log("[Fix] Majiro font cache cleared.");
+            }
+        }
+
         Utils::Log("[Core] VFS File Hook Installed.");
     }
 }

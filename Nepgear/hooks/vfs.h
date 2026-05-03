@@ -1,7 +1,9 @@
-﻿#pragma once
+#pragma once
 #include <windows.h>
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <memory>
 
 namespace VFS {
     struct VirtualFileEntry {
@@ -14,12 +16,15 @@ namespace VFS {
     };
 
     struct VirtualFileHandle {
-        VirtualFileEntry* entry;
+        const VirtualFileEntry* entry;
         LONGLONG position;
         HANDLE archiveHandle;
         HANDLE looseFileHandle;
-        PBYTE decompressedBuffer;
+        std::vector<BYTE> decompressedBuffer;
         bool isLooseFile;
+
+        VirtualFileHandle() : entry(nullptr), position(0), archiveHandle(INVALID_HANDLE_VALUE), 
+                            looseFileHandle(INVALID_HANDLE_VALUE), isLooseFile(false) {}
     };
 
     bool Initialize(HMODULE hModule);

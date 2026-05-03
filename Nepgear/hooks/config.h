@@ -28,10 +28,23 @@ namespace Config {
 
 
     extern bool    EnableFileHook;
+    extern bool    EnableKrkrzHook;
+    extern bool    EnableRioShiinaHook;
+    extern bool    EnableRioShiinaProcessReg;
+    extern bool    EnableRioShiinaProcessDvd;
+    extern UINT64  RioShiinaSpecDvdFileSize;
     extern wchar_t RedirectFolderW[MAX_PATH];
+    extern wchar_t KrkrzPatchFolder[MAX_PATH];
+    extern wchar_t KrkrzPatchFile[MAX_PATH];
     extern char    RedirectFolderA[MAX_PATH];
     extern wchar_t ArchiveFileName[MAX_PATH];
     extern int     VFSMode;
+
+    extern int     RioShiinaMode;
+    extern wchar_t RioShiinaArchivesToExtract[1024];
+    extern bool    RioShiinaSkipInvalidFileName;
+    extern bool    EnableMedFix;
+    extern bool    EnableMajiroFix;
 
 
     extern bool    EnableLE;
@@ -57,19 +70,7 @@ namespace Config {
     extern bool    EnableDebug;
     extern bool    EnableLogToFile;
 
-
     extern wchar_t IniFileName[MAX_PATH];
-
-
-    namespace AuthorInfo {
-        const bool ShowPopup = true;
-        const wchar_t* const AUTHOR_IDS[] = {
-             L"是幼微鸭mua@ai2.moe (御爱同萌)",
-             L"是幼微鸭mua@moyu.moe (鲲补丁站)"
-        };
-        const int AUTHOR_IDS_COUNT = 2;
-        const wchar_t* const ADDITIONAL_NOTES = L"本补丁完全免费发布,严禁倒卖和移植至手机端；\n未经许可，禁止制作成整合包以及转载搬运至其他网站。";
-    }
 
     void LoadConfiguration(HMODULE hModule);
 }
