@@ -173,6 +173,7 @@ static void MyAfterDecompressCallInner(uint8_t* entryAddr) {
     Utils::Log("[RioShiina] Successfully indexed archive: %ls", currentArchivePath.c_str());
 }
 
+#ifdef _M_IX86
 void __declspec(naked) MyAfterDecompressCall() {
     __asm {
         pushad
@@ -186,6 +187,11 @@ void __declspec(naked) MyAfterDecompressCall() {
         ret
     }
 }
+#else
+void MyAfterDecompressCall() {
+    // TODO: Implement x64 version if needed
+}
+#endif
 
 
 //
@@ -307,7 +313,9 @@ namespace Hooks {
                             void* callAddr = Utils::FindPatternInBlock((uint8_t*)pushParam + 0x10, 0x10, "E8 ?? ?? ?? ?? 83 C4 14");
                             if (callAddr) {
                                 void* target = (uint8_t*)callAddr + 5;
+#ifdef _M_IX86
                                 DetourAttach(&(PVOID&)target, MyAfterDecompressCall);
+#endif
                             }
                         }
                     }
