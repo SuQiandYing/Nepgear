@@ -2,6 +2,7 @@
 #include "locale_emulator.h"
 #include "config.h"
 #include "utils.h"
+#include "internal/locale/lep_api.h"
 
 #include <shlwapi.h>
 #include <tlhelp32.h>
@@ -14,48 +15,10 @@
 
 namespace {
 
-// LoaderDll and LocaleEmulatorPlus share this fixed-layout block with the
-// official LEP launcher. No registry redirect entries are used by Nepgear,
-// so the block ends immediately after the zero entry count.
-struct LepTimeFields {
-    SHORT Year;
-    SHORT Month;
-    SHORT Day;
-    SHORT Hour;
-    SHORT Minute;
-    SHORT Second;
-    SHORT Milliseconds;
-    SHORT Weekday;
-};
-
-struct LepTimeZoneInformation {
-    LONG Bias;
-    WCHAR StandardName[32];
-    LepTimeFields StandardStart;
-    LONG StandardBias;
-    WCHAR DaylightName[32];
-    LepTimeFields DaylightStart;
-    LONG DaylightBias;
-};
-
-struct LepEnvironmentBlock {
-    ULONG AnsiCodePage;
-    ULONG OemCodePage;
-    ULONG LocaleID;
-    ULONG DefaultCharset;
-    ULONG HookUILanguageApi;
-    WCHAR DefaultFaceName[LF_FACESIZE];
-    LepTimeZoneInformation Timezone;
-    ULONG64 NumberOfRegistryRedirectionEntries;
-};
-
-struct LepProcessInformation {
-    HANDLE hProcess;
-    HANDLE hThread;
-    DWORD dwProcessId;
-    DWORD dwThreadId;
-    PVOID FirstCallLdrLoadDll;
-};
+using LepTimeFields = LepApi::TimeFields;
+using LepTimeZoneInformation = LepApi::TimeZoneInformation;
+using LepEnvironmentBlock = LepApi::EnvironmentBlock;
+using LepProcessInformation = PROCESS_INFORMATION;
 
 struct RegistryTimeZoneInformation {
     LONG Bias;
@@ -65,23 +28,7 @@ struct RegistryTimeZoneInformation {
     SYSTEMTIME DaylightDate;
 };
 
-using LepCreateProcessFunction = LONG (WINAPI*)(
-    LepEnvironmentBlock* environmentBlock,
-    PCWSTR applicationName,
-    PWSTR commandLine,
-    PCWSTR currentDirectory,
-    ULONG creationFlags,
-    LPSTARTUPINFOW startupInfo,
-    LepProcessInformation* processInformation,
-    LPSECURITY_ATTRIBUTES processAttributes,
-    LPSECURITY_ATTRIBUTES threadAttributes,
-    PVOID environment,
-    HANDLE token);
-
-static_assert(offsetof(LepEnvironmentBlock, NumberOfRegistryRedirectionEntries) == 256,
-    "LEP environment block layout changed");
-static_assert(sizeof(LepEnvironmentBlock) == 264,
-    "LEP environment block size changed");
+using LepCreateProcessFunction = LepApi::CreateProcessFunction;
 
 constexpr wchar_t kHelperEnvironmentVariable[] = L"NEPGEAR_LE_HELPER";
 constexpr wchar_t kBootstrapEnvironmentVariable[] = L"NEPGEAR_LE_BOOTSTRAPPED";
@@ -215,11 +162,15 @@ const wchar_t* const* CurrentRuntimeFiles(size_t& count) {
     static const wchar_t* const files[] = {
         L"LoaderDll_x64.dll",
         L"LocaleEmulatorPlus_x64.dll",
+        L"LoaderDll_x86.dll",
+        L"LocaleEmulatorPlus_x86.dll",
     };
 #else
     static const wchar_t* const files[] = {
         L"LoaderDll_x86.dll",
         L"LocaleEmulatorPlus_x86.dll",
+        L"LoaderDll_x64.dll",
+        L"LocaleEmulatorPlus_x64.dll",
     };
 #endif
     count = _countof(files);
@@ -242,6 +193,9 @@ bool StagePersistentRuntime() {
         const wchar_t* fileName = runtimeFiles[index];
         std::wstring source;
         if (!ResolveRuntimeFile(fileName, source)) {
+            // A same-architecture launch needs only its pair. Stage the other
+            // pair when supplied so LEP's cross-architecture broker can find it.
+            if (index >= 2) continue;
             Utils::Log(Utils::LOG_ERROR,
                 "[LocaleEmulatorPlus] Missing required runtime DLL: %S.", fileName);
             return false;
@@ -301,10 +255,8 @@ bool BuildTimezone(const std::wstring& timezoneId, LepTimeZoneInformation& timez
     HKEY key = nullptr;
     if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, keyName.c_str(), 0,
         KEY_QUERY_VALUE, &key) != ERROR_SUCCESS) {
-        CopyWideString(timezone.StandardName, _countof(timezone.StandardName), timezoneId);
-        CopyWideString(timezone.DaylightName, _countof(timezone.DaylightName), timezoneId);
-        Utils::Log(Utils::LOG_WARN,
-            "[LocaleEmulatorPlus] Timezone '%S' was not found; using zero bias.",
+        Utils::Log(Utils::LOG_ERROR,
+            "[LocaleEmulatorPlus] Timezone '%S' was not found.",
             timezoneId.c_str());
         return false;
     }
@@ -319,15 +271,19 @@ bool BuildTimezone(const std::wstring& timezoneId, LepTimeZoneInformation& timez
     RegistryTimeZoneInformation registryInfo = {};
     valueSize = sizeof(registryInfo);
     if (RegGetValueW(key, nullptr, L"TZI", RRF_RT_REG_BINARY, nullptr,
-        &registryInfo, &valueSize) == ERROR_SUCCESS
-        && valueSize >= sizeof(registryInfo)) {
-        timezone.Bias = registryInfo.Bias;
-        timezone.StandardBias = registryInfo.StandardBias;
-        // LEP's launcher intentionally leaves the daylight bias at zero.
-        timezone.DaylightBias = 0;
-        CopySystemTime(registryInfo.StandardDate, timezone.StandardStart);
-        CopySystemTime(registryInfo.DaylightDate, timezone.DaylightStart);
+        &registryInfo, &valueSize) != ERROR_SUCCESS
+        || valueSize != sizeof(registryInfo)) {
+        RegCloseKey(key);
+        Utils::Log(Utils::LOG_ERROR,
+            "[LocaleEmulatorPlus] Timezone '%S' has invalid TZI data.", timezoneId.c_str());
+        return false;
     }
+
+    timezone.Bias = registryInfo.Bias;
+    timezone.StandardBias = registryInfo.StandardBias;
+    timezone.DaylightBias = registryInfo.DaylightBias;
+    CopySystemTime(registryInfo.StandardDate, timezone.StandardStart);
+    CopySystemTime(registryInfo.DaylightDate, timezone.DaylightStart);
 
     RegCloseKey(key);
     if (timezone.StandardName[0] == L'\0') {
@@ -336,6 +292,12 @@ bool BuildTimezone(const std::wstring& timezoneId, LepTimeZoneInformation& timez
     if (timezone.DaylightName[0] == L'\0') {
         CopyWideString(timezone.DaylightName, _countof(timezone.DaylightName),
             std::wstring(timezone.StandardName));
+    }
+    if (_wcsicmp(timezoneId.c_str(), L"Tokyo Standard Time") == 0) {
+        // Match the v4 Loader even when retrying a legacy v2 configuration.
+        const std::wstring tokyoName = L"\u6771\u4EAC\u6A19\u6E96\u6642";
+        CopyWideString(timezone.StandardName, _countof(timezone.StandardName), tokyoName);
+        CopyWideString(timezone.DaylightName, _countof(timezone.DaylightName), tokyoName);
     }
     return true;
 }
@@ -349,6 +311,20 @@ bool BuildEnvironmentBlock(unsigned int codepage, unsigned int localeId,
             "[LocaleEmulatorPlus] Invalid codepage %u.", codepage);
         return false;
     }
+    if (charset > 255) {
+        Utils::Log(Utils::LOG_ERROR,
+            "[LocaleEmulatorPlus] Invalid font charset %u.", charset);
+        return false;
+    }
+    const std::wstring resolvedTimezoneId = timezoneId.empty()
+        ? L"Tokyo Standard Time" : timezoneId;
+    if (resolvedTimezoneId.size() >= _countof(environmentBlock.TimezoneId) ||
+        resolvedTimezoneId.find_first_of(L"\\/") != std::wstring::npos) {
+        Utils::Log(Utils::LOG_ERROR, "[LocaleEmulatorPlus] Invalid Windows timezone ID.");
+        return false;
+    }
+    LepTimeZoneInformation timezone = {};
+    if (!BuildTimezone(resolvedTimezoneId, timezone)) return false;
 
     wchar_t localeName[LOCALE_NAME_MAX_LENGTH] = {};
     if (!LCIDToLocaleName(localeId, localeName, _countof(localeName), 0)) {
@@ -369,19 +345,59 @@ bool BuildEnvironmentBlock(unsigned int codepage, unsigned int localeId,
         }
     }
 
+    environmentBlock.Size = sizeof(environmentBlock);
+    environmentBlock.Version = LepApi::kEnvironmentVersion;
     environmentBlock.AnsiCodePage = codepage;
     environmentBlock.OemCodePage = codepage;
     environmentBlock.LocaleID = localeId;
-    environmentBlock.DefaultCharset = charset;
-    environmentBlock.HookUILanguageApi = 0;
-    environmentBlock.NumberOfRegistryRedirectionEntries = 0;
-    BuildTimezone(timezoneId.empty() ? L"Tokyo Standard Time" : timezoneId,
-        environmentBlock.Timezone);
+    environmentBlock.FontCharset = charset;
+    environmentBlock.RegistryRedirectionMode = Config::LE_RegistryRedirectionMode;
+    environmentBlock.HookUILanguageMode = Config::LE_HookUILanguageMode;
+    CopyWideString(environmentBlock.TimezoneId, _countof(environmentBlock.TimezoneId),
+        resolvedTimezoneId);
 
     Utils::Trace("[DEBUG][LocaleEmulatorPlus] direct profile locale=%S codepage=%u charset=%u timezone=%S",
         localeName, codepage, charset,
         timezoneId.empty() ? L"Tokyo Standard Time" : timezoneId.c_str());
     return true;
+}
+
+LepCreateProcessFunction ResolveCreateProcess(HMODULE loader) {
+    // CreateProcess2 injects only the child. Loading Core into the source while
+    // Nepgear is initializing would also hook the launcher unnecessarily.
+    FARPROC function = GetProcAddress(loader, "LepCreateProcess2");
+    if (!function) function = GetProcAddress(loader, "LepCreateProcess");
+    return reinterpret_cast<LepCreateProcessFunction>(function);
+}
+
+LONG CreateProcessWithCompatibleEnvironment(LepCreateProcessFunction createProcess,
+    const LepEnvironmentBlock& environmentBlock, PCWSTR executablePath,
+    PWSTR commandLine, PCWSTR currentDirectory, STARTUPINFOW& startupInfo,
+    LepProcessInformation& processInfo) {
+    LONG status = createProcess(&environmentBlock, executablePath, commandLine,
+        currentDirectory, 0, &startupInfo, &processInfo,
+        nullptr, nullptr, nullptr, nullptr);
+    if (status != LepApi::kInvalidParameter) return status;
+
+    // v2.0.0.0 introduced LEPB v2/204; its Loader does not accept v4/416.
+    // Inputs were validated above. Retry the documented fixed v2 layout once;
+    // never retry the pre-2.0 pointer/registry-entry layout.
+    LepApi::EnvironmentBlockV2 legacy = {};
+    legacy.Size = sizeof(legacy);
+    legacy.Version = 2;
+    legacy.AnsiCodePage = environmentBlock.AnsiCodePage;
+    legacy.OemCodePage = environmentBlock.OemCodePage;
+    legacy.LocaleID = environmentBlock.LocaleID;
+    legacy.FontCharset = environmentBlock.FontCharset;
+    legacy.RegistryRedirectionMode = environmentBlock.RegistryRedirectionMode;
+    legacy.HookUILanguageMode = environmentBlock.HookUILanguageMode;
+    if (!BuildTimezone(environmentBlock.TimezoneId, legacy.Timezone)) return status;
+    if (processInfo.hThread) CloseHandle(processInfo.hThread);
+    if (processInfo.hProcess) CloseHandle(processInfo.hProcess);
+    ZeroMemory(&processInfo, sizeof(processInfo));
+    Utils::Log("[LocaleEmulatorPlus] Loader rejected LEPB v4; retrying LEPB v2/204.");
+    return createProcess(&legacy, executablePath, commandLine, currentDirectory,
+        0, &startupInfo, &processInfo, nullptr, nullptr, nullptr, nullptr);
 }
 
 std::wstring QuoteCommandLinePath(const std::wstring& path) {
@@ -410,11 +426,10 @@ bool LaunchConfiguredTarget(const std::wstring& executablePath,
         return false;
     }
 
-    const auto createProcess = reinterpret_cast<LepCreateProcessFunction>(
-        GetProcAddress(loader, "LepCreateProcess"));
+    const auto createProcess = ResolveCreateProcess(loader);
     if (!createProcess) {
         Utils::Log(Utils::LOG_ERROR,
-            "[LocaleEmulatorPlus] Helper LepCreateProcess export is missing from %S.",
+            "[LocaleEmulatorPlus] Helper process creation export is missing from %S.",
             loaderPath.c_str());
         FreeLibrary(loader);
         return false;
@@ -437,23 +452,18 @@ bool LaunchConfiguredTarget(const std::wstring& executablePath,
     startupInfo.cb = sizeof(startupInfo);
     ZeroMemory(&processInfo, sizeof(processInfo));
     SetLastError(ERROR_SUCCESS);
-    const LONG status = createProcess(
-        &environmentBlock,
+    const LONG status = CreateProcessWithCompatibleEnvironment(createProcess,
+        environmentBlock,
         executablePath.c_str(),
         commandLine.data(),
         currentDirectory.empty() ? nullptr : currentDirectory.c_str(),
-        0,
-        &startupInfo,
-        &processInfo,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr);
+        startupInfo,
+        processInfo);
     const DWORD lastError = GetLastError();
     FreeLibrary(loader);
 
     if (statusOut) *statusOut = status;
-    if (status != 0) {
+    if (status < 0) {
         if (hadPreviousBootstrap) {
             SetEnvironmentVariableW(kBootstrapEnvironmentVariable, previousBootstrap);
         } else {
@@ -645,7 +655,7 @@ bool LocaleEmulator::initialize() {
     m_codepage = Config::LE_Codepage;
     m_localeId = Config::LE_LocaleID;
     m_charset = Config::LE_Charset;
-    m_timezone = Config::LE_Timezone;
+    m_timezone = Config::LE_Timezone[0] ? Config::LE_Timezone : L"Tokyo Standard Time";
     m_enabled = Config::EnableLE;
     m_initialized = true;
     return true;
@@ -658,7 +668,29 @@ bool LocaleEmulator::isBootstrappedByNepgear() const {
 }
 
 bool LocaleEmulator::needsLocaleEmulation() const {
-    return m_enabled && !isBootstrappedByNepgear() && GetACP() != m_codepage;
+    if (!m_enabled || isBootstrappedByNepgear()) return false;
+    if (GetACP() != m_codepage || GetOEMCP() != m_codepage ||
+        GetUserDefaultLCID() != m_localeId || GetSystemDefaultLCID() != m_localeId ||
+        (Config::LE_HookUILanguageMode != 0 &&
+            GetUserDefaultUILanguage() != LANGIDFROMLCID(m_localeId))) {
+        return true;
+    }
+
+    // Matching ACP alone does not mean the requested locale/time zone was
+    // applied. Compare the effective rules, including an externally loaded LEP.
+    TIME_ZONE_INFORMATION current = {};
+    LepTimeZoneInformation expected = {};
+    if (GetTimeZoneInformation(&current) == TIME_ZONE_ID_INVALID ||
+        !BuildTimezone(m_timezone, expected)) return true;
+    LepTimeFields standard = {}, daylight = {};
+    CopySystemTime(current.StandardDate, standard);
+    CopySystemTime(current.DaylightDate, daylight);
+    return current.Bias != expected.Bias || current.StandardBias != expected.StandardBias ||
+        current.DaylightBias != expected.DaylightBias ||
+        memcmp(&standard, &expected.StandardStart, sizeof(standard)) != 0 ||
+        memcmp(&daylight, &expected.DaylightStart, sizeof(daylight)) != 0 ||
+        wcscmp(current.StandardName, expected.StandardName) != 0 ||
+        wcscmp(current.DaylightName, expected.DaylightName) != 0;
 }
 
 bool LocaleEmulator::performLocaleEmulation() {
@@ -686,11 +718,10 @@ bool LocaleEmulator::relaunchProcess() {
         return false;
     }
 
-    const auto createProcess = reinterpret_cast<LepCreateProcessFunction>(
-        GetProcAddress(loader, "LepCreateProcess"));
+    const auto createProcess = ResolveCreateProcess(loader);
     if (!createProcess) {
         Utils::Log(Utils::LOG_ERROR,
-            "[LocaleEmulatorPlus] LepCreateProcess export is missing from %S.",
+            "[LocaleEmulatorPlus] Process creation export is missing from %S.",
             loaderPath.c_str());
         FreeLibrary(loader);
         return false;
@@ -780,25 +811,20 @@ bool LocaleEmulator::relaunchProcess() {
         Sleep(200);
     }
     SetLastError(ERROR_SUCCESS);
-    const LONG status = createProcess(
-        &environmentBlock,
+    const LONG status = CreateProcessWithCompatibleEnvironment(createProcess,
+        environmentBlock,
         executablePath.c_str(),
         commandLine.data(),
         currentDirectory.empty() ? nullptr : currentDirectory.c_str(),
-        0,
-        &startupInfo,
-        &processInfo,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr);
+        startupInfo,
+        processInfo);
     const DWORD lastError = GetLastError();
     FreeLibrary(loader);
 
     if (processInfo.hThread) CloseHandle(processInfo.hThread);
     if (processInfo.hProcess) CloseHandle(processInfo.hProcess);
 
-    if (status == 0) {
+    if (status >= 0) {
         Utils::Log("[LocaleEmulatorPlus] Relaunched with %S via %S (codepage %u, locale %u).",
             LocaleEmulatorPlusFileName(), LoaderDllFileName(), m_codepage, m_localeId);
         ExitProcess(0);

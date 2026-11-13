@@ -59,6 +59,7 @@ namespace Config {
     int     ArtemisRubySize = -1;
     bool    EnableKrkrHook = false;
     bool    KrkrDisablePrerenderedFonts = true;
+    int     KrkrNativeDispatchMode = KrkrNativeDispatchAuto;
     bool    EnableEntisHook = false;
     bool    EntisDisableBitmapFonts = true;
     bool    EntisRefreshFontOnSwitch = true;
@@ -85,6 +86,7 @@ namespace Config {
     bool    EnableRenPyHook = false;
     bool    RenPyRedirectFonts = true;
     bool    RenPyRefreshFontOnSwitch = true;
+    bool    EnableTopCatHook = false;
 
     bool    EnableWindowTitleHook = false;
     int     WindowTitleMode = 2;
@@ -111,6 +113,8 @@ namespace Config {
     UINT    LE_Codepage = 932;
     UINT    LE_Charset = 128;
     UINT    LE_LocaleID = 1041;
+    UINT    LE_RegistryRedirectionMode = 2;
+    UINT    LE_HookUILanguageMode = 1;
     wchar_t LE_Timezone[128] = L"Tokyo Standard Time";
 
     bool    EnableCodepageSpoof = false;
@@ -246,6 +250,12 @@ namespace Config {
         LE_Codepage = GetPrivateProfileIntW(L"LocaleEmulator", L"CodePage", 932,  ini);
         LE_LocaleID = GetPrivateProfileIntW(L"LocaleEmulator", L"LocaleID", 1041, ini);
         LE_Charset  = GetPrivateProfileIntW(L"LocaleEmulator", L"Charset",  128,  ini);
+        LE_RegistryRedirectionMode = GetPrivateProfileIntW(
+            L"LocaleEmulator", L"RegistryRedirectionMode", 2, ini);
+        LE_HookUILanguageMode = GetPrivateProfileIntW(
+            L"LocaleEmulator", L"HookUILanguageMode", 1, ini);
+        if (LE_RegistryRedirectionMode > 2) LE_RegistryRedirectionMode = 2;
+        if (LE_HookUILanguageMode > 2) LE_HookUILanguageMode = 1;
         GetPrivateProfileStringW(L"LocaleEmulator", L"Timezone", L"Tokyo Standard Time", LE_Timezone, 128, ini);
 
 
@@ -275,6 +285,12 @@ namespace Config {
         ArtemisRubySize = GetPrivateProfileIntW(L"FontEngines", L"ArtemisRubySize", -1, ini);
         EnableKrkrHook = GetPrivateProfileIntW(L"FontEngines", L"EnableKrkr", 0, ini) != 0;
         KrkrDisablePrerenderedFonts = GetPrivateProfileIntW(L"FontEngines", L"KrkrDisablePrerenderedFonts", 1, ini) != 0;
+        KrkrNativeDispatchMode = GetPrivateProfileIntW(L"FontEngines", L"KrkrNativeDispatchMode",
+            KrkrNativeDispatchAuto, ini);
+        if (KrkrNativeDispatchMode < KrkrNativeDispatchAuto ||
+            KrkrNativeDispatchMode > KrkrNativeDispatchDisabled) {
+            KrkrNativeDispatchMode = KrkrNativeDispatchAuto;
+        }
         EnableEntisHook = GetPrivateProfileIntW(L"FontEngines", L"EnableEntisHook", 0, ini) != 0;
         EntisDisableBitmapFonts = GetPrivateProfileIntW(L"FontEngines", L"EntisDisableBitmapFonts", 1, ini) != 0;
         EntisRefreshFontOnSwitch = GetPrivateProfileIntW(L"FontEngines", L"EntisRefreshFontOnSwitch", 1, ini) != 0;
@@ -301,6 +317,7 @@ namespace Config {
         EnableRenPyHook = GetPrivateProfileIntW(L"FontEngines", L"EnableRenPyHook", 0, ini) != 0;
         RenPyRedirectFonts = GetPrivateProfileIntW(L"FontEngines", L"RenPyRedirectFonts", 1, ini) != 0;
         RenPyRefreshFontOnSwitch = GetPrivateProfileIntW(L"FontEngines", L"RenPyRefreshFontOnSwitch", 1, ini) != 0;
+        EnableTopCatHook = GetPrivateProfileIntW(L"FontEngines", L"EnableTopCatHook", 0, ini) != 0;
         {
             int codepage = GetPrivateProfileIntW(L"FontEngines", L"YurisAtlasCodepage", 0, ini);
             YurisAtlasCodepage = codepage > 0 && IsValidCodePage((UINT)codepage)

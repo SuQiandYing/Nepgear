@@ -49,6 +49,7 @@
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "version.lib")
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "comctl32.lib")
 
@@ -71,7 +72,9 @@ static bool MajiroShouldReplaceFontDataQueries();
 static bool DxLibShouldReplaceFontDataQueries();
 static bool MajiroShouldDecodeAnsiTextAsCp932Wide();
 namespace BgiCompat {
-static bool NormalizeReplacementFontMetrics(const LOGFONTW& sourceLogfont, LOGFONTW& replacementLogfont);
+static bool ShouldPreserveLogicalOutlineFontNames();
+static bool NormalizeReplacementFontMetrics(const LOGFONTW& sourceLogfont,
+    LOGFONTW& replacementLogfont, const void* callerAddress = nullptr);
 static bool ShouldCreateAnsiFontThroughWide();
 static bool BeginTextOutput(HDC hdc, int* y);
 static void EndTextOutput(bool entered);
@@ -134,6 +137,7 @@ namespace AdvancedFontHook {
 #include "internal/font/font_hooks_text_render.cppinc"
 #include "internal/font/font_hooks_font_queries.cppinc"
 #include "internal/font/font_hooks_font_creation.cppinc"
+#include "internal/font/engines/topcat/topcat_font.cppinc"
 
 } // namespace AdvancedFontHook
 

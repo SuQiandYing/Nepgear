@@ -35,7 +35,7 @@ LINE 层按引擎解码器 ABI 和 BP 字节码布局识别版本，不检查游
 
 ## 激活流程
 
-1. 检查默认开启的 `EnableBgiHook`。
+1. 检查 `EnableBgiHook`（默认关闭）。
 2. 由 `Buriko General Interpreter`、`BURIKO ARC` 模块标记或 BURIKO 归档头确认身份。
 3. LINE 层检查映像中的 `DSC FORMAT 1.00`，再唯一匹配当前架构的解码器函数结构和内部
    `call` 目标范围。
@@ -86,13 +86,24 @@ Win32 路径确认字体创建、选择、栅格输出和辅助 GDI 导入后，
 字形缓存只在布局和实例均验证后按渲染线程观察到的配置版本刷新。探测字体通过
 `ScopedInternalFontProbe` 旁路替换，保持源字体和目标字体可区分。
 
+USER32 发起的字体创建请求跳过 BGI 专用度量归一化，避免系统 UI 在通用字体探测中
+进入深层 GDI 测量。调用方判断使用字体创建入口的返回地址与 USER32 映像范围。
+
+部分 BGI 会把 `GetOutlineTextMetricsA/W` 的 face name 与原请求名比较；暴露替换字体名
+会使引擎不断重建字体。对已跟踪的替换 HFONT，查询钩子把原请求名追加到返回缓冲区，
+同步增加 size query 和 `otmSize`，只改 face-name 偏移，保留真实 family/full/style 名称。
+ANSI 名称使用当前 ACP 转换，并为多字节名称保留空间。缓冲区不足时返回失败，避免长
+名称覆盖相邻字段。
+
 ## 配置
 
-- `EnableBgiHook`：BGI 总开关，默认开启；同时控制 LINE 层与 Win32 GDI 层安装。
+- `EnableBgiHook`：BGI 总开关，默认关闭；同时控制 LINE 层与 Win32 GDI 层安装。
 - `BgiPatchGdiImports`：只控制 Win32 GDI IAT 修补。
 - `BgiClearGlyphCacheOnSwitch`：只控制 Win32 已验证字形缓存的版本刷新。
 
 LINE 适配是 `EnableBgiHook` 下的自动能力，不增加按游戏配置，也不把它绑定到代码页选项。
+逻辑 OTM 名称保护随 BGI 身份和字体名称替换启用，不另设开关；可在 x86/x64 的通用
+查询路径使用。USER32 请求过滤仅属于 Win32 专用度量层。
 
 ## 日志
 
@@ -138,4 +149,8 @@ LINE 层使用结构化 `[DEBUG][BGI]` 日志：
 | 只有 GDI 导入或 DSC 字符串 | 不通过 | 不执行 | 不执行 | 不安装 BGI 专用钩子 |
 
 通用证据字段和记录格式见 [功能证据与复刻流程](../../../../../docs/reproduction.md)。
+
+本次原生 GDI 回归验证了 A/W 逻辑 face name、一次重建收敛、size query、小缓冲区拒绝、
+尾部哨兵和真实 full name 保留；执行方法见仓库根目录的 `tests/README.md`。这些探针
+验证接口行为，不代表已测试每款 BGI 游戏的画面。
 

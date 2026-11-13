@@ -68,6 +68,9 @@
     <ClInclude Include="hooks\locale_emulator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="hooks\internal\locale\lep_api.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="hooks\utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -235,6 +238,9 @@
       <Filter>Internal Modules\Font\Engines</Filter>
     </None>
     <None Include="hooks\internal\font\engines\krkr\krkr_paths.cppinc">
+      <Filter>Internal Modules\Font\Engines</Filter>
+    </None>
+    <None Include="hooks\internal\font\engines\topcat\topcat_font.cppinc">
       <Filter>Internal Modules\Font\Engines</Filter>
     </None>
     <None Include="hooks\internal\font\engines\majiro\majiro_font_cache.cppinc">

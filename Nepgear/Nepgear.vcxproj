@@ -189,6 +189,7 @@
     <ClInclude Include="hooks\internal\font\engines\common\engine_common.h" />
     <ClInclude Include="hooks\internal\font\engines\common\engine_identity_policy.h" />
     <ClInclude Include="hooks\locale_emulator.h" />
+    <ClInclude Include="hooks\internal\locale\lep_api.h" />
     <ClInclude Include="hooks\utils.h" />
     <ClInclude Include="hooks\vfs.h" />
     <ClInclude Include="hooks\window_hook.h" />
@@ -265,6 +266,7 @@
     <None Include="hooks\internal\font\engines\dxlib\dxlib_font_cache.cppinc" />
     <None Include="hooks\internal\font\engines\escude\escude_config.cppinc" />
     <None Include="hooks\internal\font\engines\krkr\krkr_paths.cppinc" />
+    <None Include="hooks\internal\font\engines\topcat\topcat_font.cppinc" />
     <None Include="hooks\internal\font\engines\majiro\majiro_font_cache.cppinc" />
     <None Include="hooks\internal\font\engines\mirai\mirai_font_data.cppinc" />
     <None Include="hooks\internal\font\engines\softpal\softpal_default_font.cppinc" />

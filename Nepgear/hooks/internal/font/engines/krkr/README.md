@@ -1,91 +1,73 @@
-# KiriKiri / TVP 适配器
+# KiriKiri / TVP 字体兼容适配器
 
 ## 职责
 
-本目录负责 KiriKiri/TVP 的预渲染 `.tft` 字体路径。适配器控制
-`Layer.font.mapPrerenderedFont` 注册和松散 `.tft` 文件可见性，使文本进入可由通用
-字体钩子处理的实时渲染路径。
+`krkr_paths.cppinc` 在 TVP 的插件 `V2Link` 边界取得官方 exporter，验证原生字体方法后，
+把 `mapPrerenderedFont` 请求转到同一字体实例的原生 `unmapPrerenderedFont`。引擎随即
+使用实时字体路径，由通用字体钩子应用当前配置。
 
-## 通用路径覆盖范围
-
-KiriKiri 可以把脚本字体映射到预渲染 TFT。命中该映射后，字形直接来自缓存资源，
-`CreateFont*`、字形查询和 GDI 绘制不会构成完整字体来源。脚本注册与文件存在性又是两条
-独立路径：只处理其中一条，仍可能通过另一条继续加载预渲染字体。
-
-适配器在安装阶段控制脚本可见的方法名，并在统一文件分派器中控制松散 TFT 的只读视图，
-使引擎采用实时渲染分支后交由通用字体模型处理。
-
-## 身份与资源
-
-适配器通过主模块中的 ANSI 或 Unicode `mapPrerenderedFont` 运行时方法标记确认
-KiriKiri/TVP 字体能力。XP3、`.tft` 和目录名称只描述资源位置，不参与引擎身份判断。
-检测结果和入口处理状态在进程生命周期内缓存。
-
-## 文件入口
-
-- `krkr_paths.cppinc`：模块方法定位、方法名处理和 TFT 文件分类。
-- `KrkrPatchMapPrerenderedFontName`：安装阶段处理脚本可见方法名。
-- `KrkrShouldHidePrerenderedFontW`：文件分派器使用的 `.tft` 路径判断。
-
-## 实现原理
-
-1. 在主模块映像内查找 ANSI 或 Unicode `mapPrerenderedFont` 标记，以运行时方法确认能力。
-2. 安装阶段把匹配方法名写成等长内部名称，阻止脚本注册预渲染字体映射。
-3. 文件分派器只对游戏根目录内 `.tft` 的只读打开、属性和存在性查询提供缺失结果。
-4. KiriKiri 回到实时字体创建、字形查询和绘制后，通用钩子应用当前字体与度量配置。
-5. 功能关闭或身份不成立时，方法名和所有 TFT 请求保持引擎原行为。
-
-## 功能
-
-- 在主模块映像中识别 `mapPrerenderedFont` ANSI 与 Unicode 字符串。
-- 使用等长内部名称控制该方法的脚本注册。
-- 对游戏根目录内的 `.tft` 只读请求提供缺失结果，使脚本回退到实时字体渲染。
-- 通过通用 GDI 字体创建、字形查询和文本绘制钩子应用当前字体。
-- 使用有限日志记录方法标记、TFT 请求和处理结果。
-
-## 设计约束依据
-
-- 方法标记同时承担身份与字体能力证据，XP3 和 TFT 后缀只用于资源分类。
-- 等长替换保留模块布局，不引入重定位或字符串长度变化。
-- 内存写入限定在主映像命中位置，并通过 `VirtualProtect` 和指令缓存刷新发布结果。
-- 文件隐藏只作用于读取语义，其他文件和根目录外路径继续调用真实 API。
-- 适配器只负责选择实时渲染路径，字体对象、编码和文字映射仍由通用模块处理。
+原生方法名是 TJS 脚本契约的一部分。适配器保留 `mapPrerenderedFont` 名称和松散、
+归档 TFT 的可见性，避免脚本报“成员不存在”或字体资源缺失。旧版名称修改与文件隐藏
+入口保留为兼容内部调用的透传函数。
 
 ## 配置
 
-- `EnableKrkrHook`
-- `KrkrDisablePrerenderedFonts`
-- 通用字体名称、字符集、度量和文字映射配置
+配置文件使用 `[FontEngines]` 下的以下键；注意 INI 总开关键是 `EnableKrkr`：
 
-## 运行约束
+```ini
+EnableKrkr=0
+KrkrDisablePrerenderedFonts=1
+KrkrNativeDispatchMode=0
+```
 
-- 引擎方法标记成立后处理模块和匹配的字体请求。
-- 模块扫描限定在主映像范围，内存写入使用 `VirtualProtect` 并刷新指令缓存。
-- 文件分类限定为游戏根目录中的 `.tft`。
-- 字体选择器线程使用真实文件视图。
-- 脚本方法名替换保持字节长度一致。
-
-## 证据与复刻
-
-1. 在主模块可读映像中分别搜索 ANSI 与 Unicode `mapPrerenderedFont`，记录命中偏移、
-   字节长度、所在节和可写保护状态。
-2. 开关开启时记录 `KrkrPatchMapPrerenderedFontName` 的等长方法名结果，并确认指令缓存刷新。
-3. 对根目录 `.tft` 执行只读打开、属性和存在性查询；对归档内 TFT、根目录外路径、写入和
-   创建请求记录 `org*` 结果。
-4. 使用带预渲染映射和不带映射的脚本各运行一次，比较实时 GDI 字体查询与渲染结果。
-
-| 场景 | 预期结果 |
+| 模式 | 行为 |
 | --- | --- |
-| ANSI/Unicode 方法标记均命中 | 身份和字体能力成立，方法名按等长规则处理 |
-| 仅一个标记或无标记 | 不写入模块，不隐藏 TFT |
-| 根目录只读 `.tft` | `KrkrShouldHidePrerenderedFontW` 返回隐藏结果 |
-| 归档 TFT、写入或根目录外路径 | 文件请求调用真实 API |
-| 功能关闭 | 脚本方法名和文件可见性保持引擎状态 |
+| `0` 自动 | 只对有版本信息的 TVP 1.4.x 尝试原生分派；旧版、未来版本、未知版本保留原生 map/unmap 与 TFT |
+| `1` 强制尝试 | 跳过版本门控，仍验证身份、exporter、原生方法和调用约定 |
+| `2` 禁用 | 保留引擎原生字体分派 |
 
-记录包括模块哈希、命中偏移、方法名字节、文件请求、配置快照和诊断日志。通用字段见
-[功能证据与复刻流程](../../../../../docs/reproduction.md)。
+模式 1 适用于已确认接口兼容但版本信息不满足自动模式的程序。它不会为未知接口创造
+兼容性。超出 0–2 的配置恢复为自动模式。
+
+绑定还要求 `[Font] Enable=1`、`EnableFaceNameReplace=1`、非空 `FaceName`，以及
+`EnableKrkr=1`、`KrkrDisablePrerenderedFonts=1`。关掉这些选项后，已安装的分派钩子
+也会透传原请求。
+
+## 身份、版本与接口能力
+
+1. 主模块包含 ANSI 或 Unicode `mapPrerenderedFont`；该标记只用于身份探测，不写入映像。
+2. 自动模式检查主模块 `VS_FIXEDFILEINFO` 的版本；仅 1.4.x 进入后续接口绑定。
+3. `GetProcAddress` 查询插件 `V2Link` 时分配固定包装入口，保持每个插件原入口独立。
+4. exporter 的查询函数及返回的 TJS 辅助函数必须属于主模块。
+5. 从全局 `Font` 类取得 map/unmap 对象，使用引擎自身创建的原生方法对象验证两者的
+   FuncCall 入口，而不假设私有对象偏移或脚本 dispatcher 布局。
+6. 验证通过后在独立 Detours 事务中绑定原生 FuncCall。方法对象引用随进程存活；
+   DLL detach 阶段不调用引擎或等待线程。
+
+`.xp3`、`.tft`、路径名和单个扩展名不用于独立确认引擎或 ABI。
+
+## ABI 与分派范围
+
+x86 在受控的 exporter 查询边界测量栈清理方式，分别使用 stdcall/cdecl 虚接口包装。
+导出的辅助函数继续使用各自的 SDK 约定。x64 使用平台统一调用约定。
+
+只重定向绑定的 map 对象、空 member、有效字体实例且至少一个参数的原生调用。unmap
+使用原 flags、result 和字体实例，以原生逻辑清理映射及缓存并返回结果。其他成员调用、
+其他对象和不满足条件的请求继续执行原函数。
+
+插件包装槽最多 16 个，接口绑定最多尝试 32 次。槽耗尽、接口缺失、版本不匹配或
+Detours 失败均保留原入口，输出有上限的诊断日志。
+
+## 文件边界
+
+`KrkrShouldHidePrerenderedFontW` 始终返回 false。TFT 的打开、属性与目录搜索由 Nepgear
+原有文件钩子和 VFS 决定，不增加第二套文件 Detours。字体分派适配可以处理由松散文件
+或 XP3 资源触发的映射调用，但不修改资源本身。
 
 ## 验证
 
-覆盖松散 TFT、归档 TFT、ANSI/Unicode 方法名、脚本回退、功能开关、模块写保护、
-热切换、共享 TFT/XP3 后缀和缺少运行时方法标记的程序。
+原生接口夹具覆盖 x86 stdcall/cdecl、x64、map 转同实例 unmap、原参数和 result、栈平衡、
+无关调用透传、模式 2、TVP 1.3 自动回退、未知版本自动回退与模式 1 显式尝试。另用
+文件/GDI 探针检查成员名保持原样和 TFT 仍可见。执行方法见仓库根目录 `tests/README.md`。
+
+上述验证使用合成 TVP exporter 与真实 Nepgear DLL，不代表所有 KRKR 游戏渲染实测。

@@ -9,6 +9,12 @@ namespace Config {
         TextSubstitutionModeSimplifiedToTraditional = 2,
     };
 
+    enum KrkrNativeDispatchModeValue : int {
+        KrkrNativeDispatchAuto = 0,
+        KrkrNativeDispatchForce = 1,
+        KrkrNativeDispatchDisabled = 2,
+    };
+
     extern bool    IsSystemEnabled;
     extern bool    ShowStartupPopup;
 
@@ -62,6 +68,7 @@ namespace Config {
     extern int     ArtemisRubySize;
     extern bool    EnableKrkrHook;
     extern bool    KrkrDisablePrerenderedFonts;
+    extern int     KrkrNativeDispatchMode;
     extern bool    EnableEntisHook;
     extern bool    EntisDisableBitmapFonts;
     extern bool    EntisRefreshFontOnSwitch;
@@ -88,6 +95,7 @@ namespace Config {
     extern bool    EnableRenPyHook;
     extern bool    RenPyRedirectFonts;
     extern bool    RenPyRefreshFontOnSwitch;
+    extern bool    EnableTopCatHook;
 
 
     extern bool    EnableWindowTitleHook;
@@ -116,6 +124,8 @@ namespace Config {
     extern UINT    LE_Codepage;
     extern UINT    LE_Charset;
     extern UINT    LE_LocaleID;
+    extern UINT    LE_RegistryRedirectionMode;
+    extern UINT    LE_HookUILanguageMode;
     extern wchar_t LE_Timezone[128];
 
 

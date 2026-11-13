@@ -1,0 +1,21 @@
+# Local Visual Studio settings
+.vs/
+*.suo
+*.user
+*.userosscache
+
+# MSBuild outputs and intermediate files
+**/obj/
+/Debug/
+/Release/
+/x64/Debug/
+/x64/Release/
+*.obj
+*.pdb
+*.ilk
+*.ipdb
+*.iobj
+
+# Local compatibility-test output
+/tests/out/
+/tests/runs/

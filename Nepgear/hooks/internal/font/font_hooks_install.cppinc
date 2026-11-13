@@ -202,7 +202,12 @@ void Install(HMODULE hModule) {
     BgiCompat::InstallInOpenDetourTransaction();
     Unity::InstallInOpenDetourTransaction();
     UnityMono::InstallInOpenDetourTransaction();
-    DetourTransactionCommit();
+    const LONG status = DetourTransactionCommit();
+    if (status != NO_ERROR) {
+        Utils::Log(Utils::LOG_ERROR, "[FontHook] Hook installation failed: %ld", status);
+        return;
+    }
+    TopCatCompat::Install();
     Yuris::Start();
     Unity::StartApplyThread();
     UnityMono::StartApplyThread();

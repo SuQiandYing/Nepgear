@@ -19,7 +19,7 @@
 
 引擎实现以 `.cppinc` 分片参与聚合翻译单元：
 
-- `hooks/font_hooks.cpp` 包含字体、文件和运行时适配器。
+- `hooks/font_hook.cpp` 包含字体、文件和运行时适配器。
 - `hooks/hook_policy.cpp` 包含只返回钩子策略的适配器。
 - `.cppinc` 使用内部链接共享已保存的 `org*` API、Detours 目标和进程状态。
 - 每个引擎目录的 `README.md` 是该适配器职责、检测条件和配置的入口。
@@ -89,12 +89,13 @@
 | DxLib | `_FONTSET.MED` 缓存一致性 | [dxlib/README.md](dxlib/README.md) |
 | EntisGLS | 位图字体注册、内部字体对象和字形栅格 | [entis/README.md](entis/README.md) |
 | Escu:de | `configure.cfg` 字体配置视图 | [escude/README.md](escude/README.md) |
-| KiriKiri / TVP | `.tft` 预渲染字体路径 | [krkr/README.md](krkr/README.md) |
+| KiriKiri / TVP | 原生 map/unmap 字体分派与 ABI 门控，保留 TFT 文件 | [krkr/README.md](krkr/README.md) |
 | Majiro | FCD 磁盘缓存和运行时字形缓存 | [majiro/README.md](majiro/README.md) |
 | Mirai | FreeType 字体数据源和字体文件重定向 | [mirai/README.md](mirai/README.md) |
 | Ren'Py | Python 字体映射、虚拟文件回调和缓存刷新 | [renpy/README.md](renpy/README.md) |
 | Softpal | Pal 默认字体类型和位图字体入口 | [softpal/README.md](softpal/README.md) |
 | TinkerBell | 宽字符字体创建与 DC 跟踪策略 | [tinkerbell/README.md](tinkerbell/README.md) |
+| TopCat | x86 GDI IAT 字体创建与确认调用点的字形度量保护 | [topcat/README.md](topcat/README.md) |
 | TyranoScript | ASAR 覆盖、Web 字体和 Electron 桥接 | [tyrano/README.md](tyrano/README.md) |
 | Unity | Mono/IL2CPP、TMP 字体资源和线程调度 | [unity/README.md](unity/README.md) |
 | YU-RIS | YPF 位图字体识别、CP932/GBK/Big5/YDG 资源配置和解码后图集替换 | [yuris/README.md](yuris/README.md) |
@@ -110,12 +111,13 @@
 | DxLib | DxLib 模块标记 + 字体契约 | `_FONTSET.MED`、`GetFontData` | 只有 MED 后缀 |
 | EntisGLS | `SGLFont::m_pFontStock` + 位图加载器类证据 | BMF、RTTI/vtable、引用字体 | 缺少任一类证据 |
 | Escu:de | `Company=ESCUDE` + 非空 `Product` | Profile `[Font] Face/Font` | 缺少公司或产品 |
-| KiriKiri/TVP | ANSI/Unicode `mapPrerenderedFont` | `.tft` 隐藏和实时 GDI 路径 | 只有一个方法标记 |
+| KiriKiri/TVP | ANSI 或 Unicode `mapPrerenderedFont` | TVP 版本、V2Link exporter 与同引擎原生 map/unmap 分派 | 只有方法标记但无兼容 exporter |
 | Majiro | `MajiroObj/MajiroArcV/MajiroSavV` | `savedata/fc_*.fcd`、运行时表 | 只有 `.fcd` 后缀 |
 | Mirai | FreeType 契约 + 字体配置标记 | `GetFontData` 固定来源、Windows Fonts | 只有 FreeType |
 | Ren'Py | `renpy/`、`__init__.py` 和核心子系统 | Python 回调、虚拟字体名 | 只有脚本目录 |
 | Softpal | `PalFontBegin/SetType/GetType` 导出集合 | 类型 `4 -> 1`、`DEFAULT_FONT.DAT` | 导出不完整 |
 | TinkerBell | `Software\\TinkerBell\\` 或 Cyberworks 标记组合 | `HookPolicy` 创建/选择策略 | 相似 DAT/DLL |
+| TopCat | TOPCAT + SET_FONT，或 TCD3 归档头 + SET_FONT | x86 `CreateFontIndirectA` / `GetTextMetricsA` IAT 与直接调用点 | 只有 TCD 后缀或通用 GDI 导入 |
 | TyranoScript | 解包 `resources/app/tyrano` 或 ASAR + Tyrano 资源 | Web 字体、ASAR、Electron 桥接 | Electron 无 Tyrano 资源 |
 | Unity | `UnityPlayer` + Mono 或 `GameAssembly`/IL2CPP | Mono/IL2CPP TMP 与 UI.Text | 运行时导出缺失 |
 | YU-RIS | `ysbin\\yscfg.ybn` + `yu-ris1` | YPF profile、WebP/PNG/YDG | profile 不完整或非字体图片 |

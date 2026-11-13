@@ -161,13 +161,62 @@ DWORD WINAPI newGetGlyphIndicesW(HDC hdc, LPCWSTR lpstr, int c, LPWORD pgi, DWOR
 }
 
 // Font info supplement hooks.
+static bool TryGetLogicalOutlineFontName(HDC hdc, LOGFONTW* sourceLogfont) {
+    if (!hdc || !sourceLogfont || !Config::EnableFontHook ||
+        !Config::EnableFaceNameReplace ||
+        !BgiCompat::ShouldPreserveLogicalOutlineFontNames()) return false;
+
+    HFONT currentFont = (HFONT)orgGetCurrentObject(hdc, OBJ_FONT);
+    ReplacementFontInfo replacementInfo = {};
+    if (!currentFont || !TryGetReplacementInfo(currentFont, &replacementInfo) ||
+        !replacementInfo.sourceLogfont.lfFaceName[0] ||
+        wcsnlen_s(replacementInfo.sourceLogfont.lfFaceName, LF_FACESIZE) >= LF_FACESIZE) {
+        return false;
+    }
+    *sourceLogfont = replacementInfo.sourceLogfont;
+    return true;
+}
+
+template<typename Metric, typename Character, typename Query>
+static UINT QueryOutlineWithLogicalName(HDC hdc, UINT cbData, Metric* metric,
+    Query originalQuery, const Character* sourceName) {
+    const UINT nativeSize = originalQuery(hdc, 0, nullptr);
+    if (!nativeSize) return 0;
+    const size_t nameBytes = (std::char_traits<Character>::length(sourceName) + 1) * sizeof(Character);
+    if (nativeSize < sizeof(Metric) || nameBytes > UINT_MAX - nativeSize) return 0;
+    const UINT requiredSize = nativeSize + static_cast<UINT>(nameBytes);
+    if (!metric) return requiredSize;
+    if (cbData < requiredSize) {
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);
+        return 0;
+    }
+    const UINT result = originalQuery(hdc, nativeSize, metric);
+    if (!result || result > nativeSize) return 0;
+
+    // OTM name members contain byte offsets. Append the logical name instead
+    // of overwriting the physical face: a longer requested name would corrupt
+    // the adjacent family/style strings. Publish the larger query size too.
+    memcpy(reinterpret_cast<BYTE*>(metric) + nativeSize, sourceName, nameBytes);
+    metric->otmpFaceName = reinterpret_cast<decltype(metric->otmpFaceName)>(
+        static_cast<uintptr_t>(nativeSize));
+    if (metric->otmSize == nativeSize) metric->otmSize = requiredSize;
+    return requiredSize;
+}
+
 UINT WINAPI newGetOutlineTextMetricsA(HDC hdc, UINT cbData, LPOUTLINETEXTMETRICA lpOTM) {
     DEBUG_API_CONTEXT("GetOutlineTextMetricsA");
     if (IsPickerThread()) return orgGetOutlineTextMetricsA(hdc, cbData, lpOTM);
     TraceApiHit(TRACE_METRICS, "GetOutlineTextMetricsA hdc=%p size=%u", hdc, cbData);
     HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
     DEBUG_GDI_ENTER("GetOutlineTextMetricsA", hdc, hNew);
-    UINT ret = orgGetOutlineTextMetricsA(hdc, cbData, lpOTM);
+    LOGFONTW sourceLogfont = {};
+    char sourceName[LF_FACESIZE * 4 + 1] = {};
+    const bool preserveName = TryGetLogicalOutlineFontName(hdc, &sourceLogfont) &&
+        WideCharToMultiByte(CP_ACP, 0, sourceLogfont.lfFaceName, -1,
+            sourceName, _countof(sourceName), nullptr, nullptr) > 0;
+    UINT ret = preserveName
+        ? QueryOutlineWithLogicalName(hdc, cbData, lpOTM, orgGetOutlineTextMetricsA, sourceName)
+        : orgGetOutlineTextMetricsA(hdc, cbData, lpOTM);
     DEBUG_GDI_EXIT("GetOutlineTextMetricsA", hdc, ret, hNew);
     if (ret && lpOTM && cbData >= sizeof(OUTLINETEXTMETRICA)) PatchOutlineTextMetric(hdc, lpOTM);
     RestoreHdcFont(hdc, hOld, hNew);
@@ -180,7 +229,10 @@ UINT WINAPI newGetOutlineTextMetricsW(HDC hdc, UINT cbData, LPOUTLINETEXTMETRICW
     TraceApiHit(TRACE_METRICS, "GetOutlineTextMetricsW hdc=%p size=%u", hdc, cbData);
     HFONT hOld, hNew = ReplaceHdcFont(hdc, &hOld);
     DEBUG_GDI_ENTER("GetOutlineTextMetricsW", hdc, hNew);
-    UINT ret = orgGetOutlineTextMetricsW(hdc, cbData, lpOTM);
+    LOGFONTW sourceLogfont = {};
+    UINT ret = TryGetLogicalOutlineFontName(hdc, &sourceLogfont)
+        ? QueryOutlineWithLogicalName(hdc, cbData, lpOTM, orgGetOutlineTextMetricsW, sourceLogfont.lfFaceName)
+        : orgGetOutlineTextMetricsW(hdc, cbData, lpOTM);
     DEBUG_GDI_EXIT("GetOutlineTextMetricsW", hdc, ret, hNew);
     if (ret && lpOTM && cbData >= sizeof(OUTLINETEXTMETRICW)) PatchOutlineTextMetric(hdc, lpOTM);
     RestoreHdcFont(hdc, hOld, hNew);
